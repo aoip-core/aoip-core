@@ -1,5 +1,4 @@
-#ifndef _aoip_h_
-#define _aoip_h_
+#pragma once
 
 #include <stdio.h>
 #include <errno.h>
@@ -211,7 +210,4 @@ AOIP_API void network_cb_stop(aoip_t *);
 
 AOIP_API int audio_cb_run(aoip_t *);
 AOIP_API void audio_cb_stop(aoip_t *);
-
-
-#endif  /* _aoip_h_ */
 

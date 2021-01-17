@@ -1,5 +1,4 @@
-#ifndef RTP_H
-#define RTP_H
+#pragma once
 
 #include <stdint.h>
 
@@ -33,7 +32,4 @@ struct rtp_hdr {
     uint32_t timestamp;
     uint32_t ssrc;
 } __attribute__((packed));
-
-
-#endif  /* RTP_H */
 

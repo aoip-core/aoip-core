@@ -1,5 +1,4 @@
-#ifndef _sap_h_
-#define _sap_h_
+#pragma once
 
 #include <stdio.h>
 #include <stdint.h>
@@ -38,6 +37,4 @@ int search_rtp_addr_from_sap_msg(struct in_addr *,
 uint16_t build_sap_payload(struct sap_payload *,
 		const struct in_addr, const char *,
 		const struct in_addr, const uint16_t);
-
-#endif  /* _sap_h_ */
 

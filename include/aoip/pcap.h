@@ -1,5 +1,4 @@
-#ifndef AOIP_PCAP_H
-#define AOIP_PCAP_H
+#pragma once
 
 #include <stdint.h>
 
@@ -13,7 +12,7 @@ struct pcap_global_hdr {
 	uint32_t magic_number;
 	uint16_t version_major;
 	uint16_t version_minor;
-	int thiszone;
+	int32_t thiszone;
 	uint32_t sigfigs;
 	uint32_t snaplen;
 	uint32_t network;
@@ -28,5 +27,3 @@ struct pcaprec_hdr {
 
 void build_pcap_global_hdr(struct pcap_global_hdr *);
 void build_pcaprec_hdr(struct pcaprec_hdr *);
-
-#endif //AOIP_PCAP_H

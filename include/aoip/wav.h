@@ -1,5 +1,4 @@
-#ifndef _wav_h_
-#define _wav_h_
+#pragma once
 
 #include <stdio.h>
 #include <stdint.h>
@@ -44,6 +43,4 @@ int wav_close(int);
 void build_wav_hdr(struct wav_hdr *);
 ssize_t init_wav_hdr(int, struct wav_hdr *);
 int update_wav_hdr(int, uint32_t);
-
-#endif  /* _wav_h_ */
 

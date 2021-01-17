@@ -1,5 +1,4 @@
-#ifndef _QUEUE_H_
-#define _QUEUE_H_
+#pragma once
 
 struct aoip_queue_slot {
 	uint32_t tstamp;   /* time stamp (source: media_clock) */
@@ -49,5 +48,3 @@ queue_write_ptr(const queue_t *q)
 {
 	return &q->slot[q->head];
 }
-
-#endif
