@@ -14,11 +14,12 @@ find_package(Threads REQUIRED)
 
 # libaoip
 add_library(aoip STATIC
-	lib/core/sap.c
-	lib/core/aoip.c
-	lib/wav.c
-	lib/pcap.c
-	lib/tone.c)
+		lib/core/aoip.c
+		lib/sap.c
+		lib/wav.c
+		lib/pcap.c
+		lib/tone.c
+)
 target_include_directories(aoip PUBLIC include)
 target_link_libraries(aoip)
 
