@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# sora
+Build
+run.sh
+cmake-build-*/
+
