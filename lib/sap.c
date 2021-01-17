@@ -27,34 +27,40 @@ search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 	char *p = (char *)&msg->payload.sdp[0];
 	char *end = (char *)&msg->payload.sdp[msg->len-1];
 
-	if (*p != 'v' || *(p+1) != '=' || *(p+2) != '0') {  // v=0
-		printf("this is not sdp\n");
+	// v=0
+	if (*p != 'v' || *(p+1) != '=' || *(p+2) != '0') {
+		//printf("this is not sdp\n");
+		return -1;
 	}
 	p += 4;
 
+	// search the words of 'c='
+	uint8_t detected = 0;
 	while (p++ != (end - MIN_SAP_C_MSG_SIZE)) {  // minimum length of 'c=' message
-		if (*p == 'c' && *(p+1) == '=') {  // c=
-			if (*(p+2) != 'I' || *(p+3) != 'N' || // IN
-				*(p+5) != 'I' || *(p+6) != 'P' || *(p+7) != '4') {  // IP4
-				break;
-			}
-			p += 9;
-
-			uint8_t i;
-			for (i = 0; *p != '/'; i++, p++) {
-				ascii_addr[i] = *p;
-				if (i == MAX_IPV4_ASCII_SIZE - 1) {  // MAX_IP4_SIZE - 1
-					//error_flg = 1;
-					break;
-				}
-			}
-
-			//success_flg = 1;
+		if (*p == 'c' && *(p + 1) == '=') {
+			detected = 1;
 			break;
 		}
 	}
+	if (!detected) {
+		return -1;
+	}
+	p += 2;
 
-	return inet_aton(ascii_addr, addr);
+	if (*(p) != 'I' || *(p+1) != 'N' || // IN
+		*(p+3) != 'I' || *(p+4) != 'P' || *(p+5) != '4') {  // IP4
+		return -1;
+	}
+	p += 7;
+
+	for (uint8_t i = 0; *p != '/'; i++, p++) {
+		ascii_addr[i] = *p;
+		if (i == MAX_IPV4_ASCII_SIZE - 1) {
+			return -1;
+		}
+	}
+
+	return inet_pton(AF_INET, ascii_addr, addr);
 }
 
 
@@ -78,7 +84,7 @@ build_sap_payload(struct sap_payload *payload,
 		const struct in_addr src_addr, const char *session_name,
 		const struct in_addr rtp_addr, const uint16_t rtp_port)
 {
-	int ret = 0, now;
+	int ret, now;
 
 	/* SAP message */
 	payload->flags = 0x20;

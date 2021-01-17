@@ -16,9 +16,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <timer.h>
 #include <aoip/queue.h>
 #include <aoip/rtp.h>
-#include <aoip/timer.h>
 #include <aoip/sap.h>
 
 #define BIT_RATE        3            // 2: 16bit, 3: 24bit
@@ -103,8 +103,8 @@ typedef struct network_device {
 } netdev_t;
 
 typedef struct network_timer {
-	tv_t ptp_timer;
-	tv_t sap_timer;
+	ns_t ptp_timer;
+	ns_t sap_timer;
 } network_timer_t;
 
 typedef struct aoip_stats {
@@ -140,7 +140,7 @@ typedef struct aoip_dev {
 
 	state_t state;
 
-	tv_t network_clock;
+	ns_t network_clock;
 
 	queue_t queue;
 

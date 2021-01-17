@@ -24,8 +24,6 @@ test_build_sap_payload(void)
 static void
 test_search_rtp_addr_from_sap_msg(void)
 {
-	int ret;
-
 	struct sap_msg msg = {
 		.payload.sdp =
 			 "v=0\r\n"
@@ -46,12 +44,12 @@ test_search_rtp_addr_from_sap_msg(void)
 	printf("msg.len=%d\n", msg.len);
 
 	struct in_addr correct_addr;
-	ret = inet_aton("239.0.0.1", &correct_addr);
+	inet_aton("239.0.0.1", &correct_addr);
 
-	struct in_addr result_addr = {};
-	ret = search_rtp_addr_from_sap_msg(&result_addr, &msg);
+	struct in_addr result_addr = {0};
+	int ret = search_rtp_addr_from_sap_msg(&result_addr, &msg);
 
-	ok(ret != 0);
+	ok(ret == 1);
 	ok(msg.len == 274);
 	ok(result_addr.s_addr == correct_addr.s_addr);
 }

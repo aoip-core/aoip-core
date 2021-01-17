@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 
-#include "timer.h"
+#include "../timer.h"
 #include "ptp.h"
 #include "ptpc_socket.h"
 

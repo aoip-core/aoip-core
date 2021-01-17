@@ -28,7 +28,6 @@ static inline int ns_cmp(ns_t ns1, ns_t ns2)
 	return ns1 == ns2 ? 0 : ns1 > ns2 ? 1 : -1;
 }
 
-#include <stdio.h>
 static inline void ns_gettime(ns_t *ns)
 {
 	struct timespec t;

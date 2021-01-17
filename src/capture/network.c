@@ -63,9 +63,9 @@ int myapp_nt_recv(aoip_t *aoip)
 
 	int ret = 0, count = 0;
 	char buf[2048] = {};
-	tv_t now = 0;
+	ns_t now = 0;
 
-       	tv_gettime(&now);
+       	ns_gettime(&now);
 	//printf("now=%lu\n", (uint64_t)now);
 
 	// receive PTP packets
@@ -97,13 +97,13 @@ int myapp_nt_recv(aoip_t *aoip)
 	}
 
 	// timeout PTP timer
-	if (tv_sub(now, timer->ptp_timer) >= TIMEOUT_PTP_TIMER) {
+	if (ns_sub(now, timer->ptp_timer) >= TIMEOUT_PTP_TIMER) {
 		printf("ptp_timeout\n");
 		ret = -1;
 	}
 
 	// timeout SAP timer
-	if (tv_sub(now, timer->sap_timer) >= TIMEOUT_SAP_TIMER) {
+	if (ns_sub(now, timer->sap_timer) >= TIMEOUT_SAP_TIMER) {
 		struct sap_msg *sap_msg = &net->sap_msg;
 
 		printf("sap_timeout\n");
@@ -123,9 +123,9 @@ int myapp_nt_recv(aoip_t *aoip)
 
 int myapp_nt_send(aoip_t *aoip)
 {
-	tv_t now;
+	ns_t now;
 
-       	tv_gettime(&now);
+    ns_gettime(&now);
 
 	printf("myrecord_send: %" PRIu64 "\n", (uint64_t)now);
 

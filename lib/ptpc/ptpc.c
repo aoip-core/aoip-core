@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <assert.h>
 
 int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config)
 {
@@ -107,37 +106,19 @@ void print_ptp_header(ptp_msg_t *ptp)
 
 	switch (ptp->hdr.msgtype) {
 		case PTP_MSGID_ANNOUNCE:
-			printf("ptp_announce_msg:\n"
-				   "\ttstamp.seconds: %u\n",
-				   "\ttstamp.nanoseconds: %u\n",
-				   "\ttstamp.curUtcOffset: %u\n",
-				   "\ttstamp.grandmasterPriority1: %u\n",
-				   "\ttstamp.grandmasterClockQuality: %u\n",
-				   "\ttstamp.grandmasterPriority2: %u\n",
-				   "\ttstamp.grandmasterId: %u\n",
-				   "\ttstamp.stepsRemoved: %u\n",
-				   "\ttstamp.timeSource: %u\n",
-				   ptp->announce.tstamp.seconds,
-				   ptp->announce.tstamp.nanoseconds,
-				   ptp->announce.announce.curUtcOffset,
-				   ptp->announce.announce.grandmasterPriority1,
-				   ptp->announce.announce.grandmasterClockQuality,
-				   ptp->announce.announce.grandmasterPriority2,
-				   ptp->announce.announce.grandmasterId,
-				   ptp->announce.announce.stepsRemoved,
-				   ptp->announce.announce.timeSource);
+			printf("\tptp_announce_msg:\n");
 			break;
 		case PTP_MSGID_SYNC:
-			printf("\nptp_sync_msg:\n");
+			printf("\tptp_sync_msg:\n");
 			break;
 		case PTP_MSGID_DELAY_REQ:
-			printf("\nptp_delay_req_msg:\n");
+			printf("\tptp_delay_req_msg:\n");
 			break;
 		case PTP_MSGID_FOLLOW_UP:
-			printf("\nptp_follow_up_msg:\n");
+			printf("\tptp_follow_up_msg:\n");
 			break;
 		case PTP_MSGID_DELAY_RESP:
-			printf("\nptp_delay_resp_msg:\n");
+			printf("\tptp_delay_resp_msg:\n");
 			break;
 		default:
 			break;

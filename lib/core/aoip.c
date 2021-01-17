@@ -327,8 +327,8 @@ static int network_recv_loop(aoip_t *aoip)
 	struct sap_msg *sap_msg = &net->sap_msg;
 
 	// timer reset
-	tv_gettime(&timer->ptp_timer);
-	tv_gettime(&timer->sap_timer);
+	ns_gettime(&timer->ptp_timer);
+	ns_gettime(&timer->sap_timer);
 
 	// send first sap :TODO
 	count = send(net->sap.sockfd, (char *)&sap_msg->payload,
