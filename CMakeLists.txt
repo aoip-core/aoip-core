@@ -14,7 +14,7 @@ find_package(Threads REQUIRED)
 
 # libaoip
 add_library(aoip STATIC
-		lib/core/aoip.c
+		lib/aoip.c
 		lib/sap.c
 		lib/wav.c
 		lib/pcap.c
