@@ -28,19 +28,16 @@ typedef struct {
 
 } ptpc_config_t;
 
-struct serverinfo {
-	struct sockaddr_in addr;
-	socklen_t socklen;
-};
-
 typedef struct {
 	struct in_addr local_addr;
 
 	struct in_addr mcast_addr;
 
-	struct serverinfo serverinfo;
+	struct sockaddr_in server_addr;
 
 	uint64_t ptp_server_id;
+
+	int64_t ptp_offset;
 
 	int event_fd;
 
@@ -57,6 +54,20 @@ typedef struct {
 	ns_t t3;
 	ns_t t4;
 } ptpc_sync_ctx_t;
+
+static inline void ptp_sync_state_reset(ptpc_sync_ctx_t *sync)
+{
+	sync->t1 = 0;
+	sync->t2 = 0;
+	sync->t3 = 0;
+	sync->t4 = 0;
+	sync->state = S_INIT;
+}
+
+static inline int64_t calc_ptp_offset(ptpc_sync_ctx_t *sync)
+{
+	return (int64_t)sync->t2 + (int64_t)sync->t4 - (int64_t)sync->t1 - (int64_t)sync->t3 / 2;
+}
 
 int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *);
 void ptpc_context_destroy(ptpc_ctx_t *);

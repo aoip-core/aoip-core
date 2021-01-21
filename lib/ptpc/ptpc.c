@@ -32,10 +32,9 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config)
 		goto out;
 	}
 
-	// serverinfo.socklen
-	ctx->serverinfo.addr.sin_family = AF_INET;
-	ctx->serverinfo.addr.sin_port = htons(PTP_EVENT_PORT);
-	ctx->serverinfo.socklen = sizeof(ctx->serverinfo.addr);
+	// server_addr
+	ctx->server_addr.sin_family = AF_INET;
+	ctx->server_addr.sin_port = htons(PTP_EVENT_PORT);
 
 	// ptp_event_fd
 	if ((ctx->event_fd = create_udp_socket_nonblock(PTP_EVENT_PORT)) < 0) {
@@ -106,19 +105,19 @@ void print_ptp_header(ptp_msg_t *ptp)
 
 	switch (ptp->hdr.msgtype) {
 		case PTP_MSGID_ANNOUNCE:
-			printf("\tptp_announce_msg:\n");
+			printf("\tptp_announce_msg\n");
 			break;
 		case PTP_MSGID_SYNC:
-			printf("\tptp_sync_msg:\n");
+			printf("\tptp_sync_msg\n");
 			break;
 		case PTP_MSGID_DELAY_REQ:
-			printf("\tptp_delay_req_msg:\n");
+			printf("\tptp_delay_req_msg\n");
 			break;
 		case PTP_MSGID_FOLLOW_UP:
-			printf("\tptp_follow_up_msg:\n");
+			printf("\tptp_follow_up_msg\n");
 			break;
 		case PTP_MSGID_DELAY_RESP:
-			printf("\tptp_delay_resp_msg:\n");
+			printf("\tptp_delay_resp_msg\n");
 			break;
 		default:
 			break;

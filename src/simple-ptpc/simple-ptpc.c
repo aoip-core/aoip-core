@@ -56,8 +56,8 @@ int ptp_wait_announce_message(ptpc_ctx_t *ctx)
 				   !flag_is_set(msg->hdr.flag, PTP_FLAG_UNICAST)) {
 					printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n", htobe64(msg->hdr.clockId));
 
-					// ctx->server_addr
-					ctx->serverinfo.addr.sin_addr.s_addr = sender.sin_addr.s_addr;
+					// server_addr
+					ctx->server_addr.sin_addr.s_addr = sender.sin_addr.s_addr;
 
 					// ctx->ptp_server_id
 					ctx->ptp_server_id = msg->hdr.clockId;
@@ -95,7 +95,7 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 		const ptp_msg_t *msg = (ptp_msg_t *)&recvbuf;
 
 		// receive PTP event packets
-		count = recv(ctx->event_fd, recvbuf, sizeof(recvbuf), MSG_DONTWAIT);
+		count = recv(ctx->event_fd, recvbuf, sizeof(recvbuf), 0);
 		if (count > 0) {
 			//printf("ptp_event: count=%zd\n", count);
 
@@ -117,7 +117,7 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 		}
 
 		// receive PTP general packets
-		count = recv(ctx->general_fd, recvbuf, sizeof(recvbuf), MSG_DONTWAIT);
+		count = recv(ctx->general_fd, recvbuf, sizeof(recvbuf), 0);
 		if (count > 0) {
 			//printf("ptp_general: count=%zd\n", count);
 
@@ -136,11 +136,7 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 			}
 
 			if (msg->hdr.seqid != sync.seqid) {
-				sync.t1 = 0;
-				sync.t2 = 0;
-				sync.t3 = 0;
-				sync.t4 = 0;
-				sync.state = S_INIT;
+				ptp_sync_state_reset(&sync);
 			}
 
 			 if (sync.state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
@@ -149,7 +145,7 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 			 	// send DELAY_REP
 			 	build_delay_req_msg(&sync, (ptp_delay_req_t *)&sendbuf);
 			 	sendto(ctx->event_fd, sendbuf, sizeof(ptp_delay_req_t), 0,
-							   (struct sockaddr *)&ctx->serverinfo.addr, ctx->serverinfo.socklen);
+						(struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr));
 				ns_gettime(&sync.t3);
 				sync.state = S_FOLLOW_UP;
 			 }
@@ -158,14 +154,10 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 				sync.t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
 
 				// offset
-				int64_t offset = ((int64_t)sync.t2 + (int64_t)sync.t4 - (int64_t)sync.t1 - (int64_t)sync.t3) / 2;
+				ctx->ptp_offset = calc_ptp_offset(&sync);
 
-				printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync.seqid, offset);
-				sync.t1 = 0;
-				sync.t2 = 0;
-				sync.t3 = 0;
-				sync.t4 = 0;
-				sync.state = S_INIT;
+				printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync.seqid, ctx->ptp_offset);
+				ptp_sync_state_reset(&sync);
 			}
 
 			// update the timeout timer
