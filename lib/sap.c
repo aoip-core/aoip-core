@@ -1,4 +1,4 @@
-#include <aoip/sap.h>
+#include <sap.h>
 #include <unistd.h>
 #include <socket.h>
 

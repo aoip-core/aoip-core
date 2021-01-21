@@ -12,23 +12,30 @@ set(CMAKE_C_FLAGS" ${CMAKE_C_FLAGS} -Wall -Wextra -O")
 
 find_package(Threads REQUIRED)
 
-# libaoip
-add_library(aoip STATIC
-		lib/aoip.c
-		lib/sap.c
-		lib/wav.c
-		lib/pcap.c
-		lib/tone.c
-)
-target_include_directories(aoip PUBLIC include)
-target_link_libraries(aoip)
-
 # libptpc
 add_library(ptpc STATIC
 		lib/ptpc.c
 		lib/socket.c)
 target_include_directories(ptpc PUBLIC include)
 target_link_libraries(ptpc)
+
+# libsap
+add_library(sap STATIC
+		lib/sap.c
+		lib/socket.c)
+target_include_directories(sap PUBLIC include)
+target_link_libraries(sap)
+
+# libaoip
+add_library(aoip STATIC
+		lib/aoip.c
+		lib/wav.c
+		lib/pcap.c
+		lib/tone.c
+		)
+target_include_directories(aoip PUBLIC include)
+target_link_libraries(aoip sap ptpc)
+
 
 # simple-ptpc
 add_executable(simple-ptpc src/simple-ptpc/simple-ptpc.c)

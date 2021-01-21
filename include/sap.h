@@ -47,7 +47,7 @@ typedef struct {
 int search_rtp_addr_from_sap_msg(struct in_addr *,
 		const struct sap_msg *);
 uint16_t build_sap_payload(struct sap_payload *,
-		const struct in_addr, const char *,
-		const struct in_addr, const uint16_t);
+		struct in_addr, const char *,
+		struct in_addr, uint16_t);
 int sap_create_context(sap_ctx_t *, uint8_t *);
 void sap_context_destroy(sap_ctx_t *);

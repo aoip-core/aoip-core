@@ -183,8 +183,8 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 	ns_t ptp_timer, sap_timer;
 
 	// timer reset
-	ns_gettime(ptp_timer);
-	ns_gettime(sap_timer);
+	ns_gettime(&ptp_timer);
+	ns_gettime(&sap_timer);
 
 	// send first sap :TODO
 	count = send(sap->sap_fd, (char *)&sap->sap_msg.payload, sap->sap_msg.len, 0);

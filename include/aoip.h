@@ -22,7 +22,7 @@
 #include "ptpc/ptpc.h"
 #include <aoip/queue.h>
 #include <aoip/rtp.h>
-#include <aoip/sap.h>
+#include <sap.h>
 
 #define BIT_RATE        3            // 2: 16bit, 3: 24bit
 #define N_CHANNEL       2            // 2: stereo
