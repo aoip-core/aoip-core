@@ -116,8 +116,8 @@ struct aoip_operations {
 
 #define AOIP_API    extern
 
-AOIP_API int register_aoip_device(aoip_ctx_t *, aoip_config_t *);
-AOIP_API void unregister_aoip_device(aoip_ctx_t *);
+AOIP_API int aoip_create_context(aoip_ctx_t *, aoip_config_t *);
+AOIP_API void aoip_context_destroy(aoip_ctx_t *);
 
 AOIP_API int network_cb_run(aoip_ctx_t *);
 AOIP_API void network_cb_stop(aoip_ctx_t *);

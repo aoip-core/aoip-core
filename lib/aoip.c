@@ -125,7 +125,7 @@ static void aoip_core_close(aoip_ctx_t *ctx)
 	printf("received_frames=%u\n", stats->received_frames);
 }
 
-int register_aoip_device(aoip_ctx_t *ctx, aoip_config_t *config)
+int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 {
 	const struct aoip_operations *ops = ctx->ops;
 	int ret;
@@ -165,7 +165,7 @@ out:
 	return ret;
 }
 
-void unregister_aoip_device(aoip_ctx_t *ctx)
+void aoip_context_destroy(aoip_ctx_t *ctx)
 {
     audio_device_release(ctx);
 	network_device_release(ctx);

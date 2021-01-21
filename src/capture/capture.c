@@ -70,7 +70,7 @@ int main(void)
 	// audio and network threads
 	pthread_t aoth, ntth;
 
-	ret = register_aoip_device(&ctx, &myapp_config);
+	ret = aoip_create_context(&ctx, &myapp_config);
 	if (ret < 0) {
 		fprintf(stderr, "register_aoip_device: failed\n");
 		return 1;
@@ -106,7 +106,7 @@ int main(void)
 		return 1;
 	}
 
-	unregister_aoip_device(&ctx);
+	aoip_context_destroy(&ctx);
 
 	return 0;
 }
