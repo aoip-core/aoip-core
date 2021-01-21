@@ -26,7 +26,7 @@ target_link_libraries(aoip)
 # libptpc
 add_library(ptpc STATIC
 		lib/ptpc.c
-        lib/ptpc_socket.c)
+		lib/socket.c)
 target_include_directories(ptpc PUBLIC include)
 target_link_libraries(ptpc)
 
