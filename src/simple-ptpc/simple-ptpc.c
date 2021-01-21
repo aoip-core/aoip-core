@@ -8,9 +8,12 @@
 
 volatile sig_atomic_t caught_signal;
 
+
+static uint8_t local_addr[] = "10.0.1.104";
+
 static const ptpc_config_t config = {
 		.ptp_mode = PTP_MODE_MULTICAST,
-		.local_addr = "10.0.1.104",
+		.ptp_domain = 0,
 };
 
 void sig_handler(int sig) {
@@ -191,7 +194,7 @@ main(void)
 
 	ptpc_ctx_t ctx = {0};
 
-	if (ptpc_create_context(&ctx, &config) < 0) {
+	if (ptpc_create_context(&ctx, &config, (uint8_t *)&local_addr) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		return 1;
 	}

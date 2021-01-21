@@ -2,7 +2,10 @@
 
 #include <stdint.h>
 
+#define RTP_MULTICAST_GROUP    "239.69.179.201"
+#define RTP_PORT               5004
 #define RTP_HDR_SIZE    12
+
 struct rtp_hdr {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
     uint8_t csrc_count :4;

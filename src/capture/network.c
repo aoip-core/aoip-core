@@ -1,52 +1,27 @@
 #include "myapp.h"
 
-int myapp_nt_init(aoip_t *aoip)
-{
-	net_config_t *config = &aoip->net.config;
-
-	int ret = 0;
-
-	// device name
-	snprintf(config->device_name, MAX_DEVICE_NAME_SIZ,
-			"aoip-core v%d.%d.%d", 0, 0, 1);
-
-	// mode
-	config->network_mode = NETWORK_MODE_MULTICAST;
-
-	// src_addr
-	config->multicast_interface.s_addr = inet_addr(MY_ADDR);
-	
-	// ptp
-	config->ptp_multicast_addr.s_addr = inet_addr(PTP_MULTICAST_GROUP);
-	config->ptp_announce_msg_port = htons(PTP_ANNOUNCE_PORT);
-	config->ptp_sync_msg_port = htons(PTP_SYNC_PORT);
-
-	// rtp
-	config->rtp_multicast_addr.s_addr = inet_addr(RTP_MULTICAST_GROUP);
-	config->rtp_port = htons(RTP_PORT);
-
-	// sap
-	config->sap_multicast_addr.s_addr = inet_addr(SAP_MULTICAST_GROUP);
-	config->sap_port = htons(SAP_PORT);
-
-	return ret;
-}
-
-int myapp_nt_release(aoip_t *aoip)
+int myapp_nt_init(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
 	return ret;
 }
 
-int myapp_nt_open(aoip_t *aoip)
+int myapp_nt_release(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
 	return ret;
 }
 
-int myapp_nt_close(aoip_t *aoip)
+int myapp_nt_open(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+
+	return ret;
+}
+
+int myapp_nt_close(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
@@ -55,29 +30,28 @@ int myapp_nt_close(aoip_t *aoip)
 
 #define TIMEOUT_PTP_TIMER    (2 * 1000000000UL)
 #define TIMEOUT_SAP_TIMER    (30 * 1000000000UL)
-int myapp_nt_recv(aoip_t *aoip)
+int myapp_nt_recv(aoip_ctx_t *ctx)
 {
-	queue_t *queue = &aoip->queue;
-	network_t *net = &aoip->net;
-	network_timer_t *timer = &net->timer;
+	queue_t *queue = &ctx->queue;
+	network_t *net = &ctx->net;
 
+	ns_t now, ptp_timer = 0, sap_timer = 0;
 	int ret = 0, count = 0;
 	char buf[2048] = {};
-	ns_t now = 0;
 
        	ns_gettime(&now);
 	//printf("now=%lu\n", (uint64_t)now);
 
 	// receive PTP packets
-	count = recv(net->ptp.sockfd, buf, sizeof(buf), 0);
+	count = recv(ctx->ptpc.event_fd, buf, sizeof(buf), 0);
 	if (count > 0) {
 		//printf("received PTP packets\n");
-		timer->ptp_timer = now;
+		ptp_timer = now;
 	}
 
 	// receive RTP packets
 	queue_slot_t *slot = queue_write_ptr(queue);
-	count = recv(net->rtp.sockfd, slot->data, 
+	count = recv(net->rtp_fd, slot->data,
 			(RTP_HDR_SIZE + DATA_QUEUE_SLOT_SIZE), 0);
 	if (count > 0) {
 		if (!queue_full(queue)) {
@@ -97,31 +71,31 @@ int myapp_nt_recv(aoip_t *aoip)
 	}
 
 	// timeout PTP timer
-	if (ns_sub(now, timer->ptp_timer) >= TIMEOUT_PTP_TIMER) {
+	if (ns_sub(now, ptp_timer) >= TIMEOUT_PTP_TIMER) {
 		printf("ptp_timeout\n");
 		ret = -1;
 	}
 
 	// timeout SAP timer
-	if (ns_sub(now, timer->sap_timer) >= TIMEOUT_SAP_TIMER) {
-		struct sap_msg *sap_msg = &net->sap_msg;
+	if (ns_sub(now, sap_timer) >= TIMEOUT_SAP_TIMER) {
+		struct sap_msg *sap_msg = &ctx->sap.sap_msg;
 
 		printf("sap_timeout\n");
 
-		count = send(net->sap.sockfd, (char *)&sap_msg->payload,
+		count = send(ctx->sap.sap_fd, (char *)&sap_msg->payload,
 				sap_msg->len, 0);
 		if (count < 1) {
 			perror("send(sap.sockfd)");
 			ret = -1;
 		};
 
-		timer->sap_timer = now;
+		sap_timer = now;
 	}
 
 	return ret;
 }
 
-int myapp_nt_send(aoip_t *aoip)
+int myapp_nt_send(aoip_ctx_t *aoip)
 {
 	ns_t now;
 

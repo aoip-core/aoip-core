@@ -31,11 +31,11 @@ err:
 	return ret;
 }
 
-static int audio_device_init(aoip_t *aoip)
+static int audio_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 {
 	int ret;
 
-	ret = aoip->ops->ao_init(aoip);
+	ret = ctx->ops->ao_init(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->ao_init: failed\n");
 		ret = -1;
@@ -47,146 +47,37 @@ out:
 }
 
 static int
-audio_device_release(aoip_t *aoip)
+audio_device_release(aoip_ctx_t *ctx)
 {
-	int ret = aoip->ops->ao_release(aoip);
+	int ret = ctx->ops->ao_release(ctx);
 	if (ret < 0) {
 		perror("ops->ao_release: failed");
 	}
 	return ret;
 }
 
-static int udp_multicast_open(netdev_t *dev,
-		struct in_addr multicast_interface, struct in_addr maddr,
-		uint16_t mport)
+
+static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 {
 	int ret;
 
-	dev->sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	if (dev->sockfd < 0) {
-		perror("socket(dev->sockfd)");
-		ret = -1;
-		goto out;
-	}
-
-	dev->src_addr.sin_family = AF_INET;
-	dev->src_addr.sin_port = mport;
-	dev->src_addr.sin_addr.s_addr = INADDR_ANY;
-	ret = bind(dev->sockfd, (struct sockaddr *)&dev->src_addr,
-			sizeof(dev->src_addr));
-	if (ret < 0) {
-		perror("bind(dev->sockfd)");
-		ret = -1;
-		goto out;
-	}
-
-	// set the multicast interface
-	ret = setsockopt(dev->sockfd, IPPROTO_IP, IP_MULTICAST_IF, 
-	    (char *)&multicast_interface, sizeof(multicast_interface));
-	if(ret < 0) {
-		perror("setsockopt(IP_MULTICAST_IF)");
-		ret = -1;
-		goto out;
-	}
-
-	// join the multicast group
-	dev->mreq.imr_interface.s_addr = multicast_interface.s_addr;
-	dev->mreq.imr_multiaddr.s_addr = maddr.s_addr;
-	if (setsockopt(dev->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-		(char *)&dev->mreq, sizeof(dev->mreq)) != 0) {
-		perror("setsockopt(IP_ADD_MEMBERSHIP)");
-		ret = -1;
-		goto out;
-	}
-
-	// non-blocking
-	if (fcntl(dev->sockfd, F_SETFL, O_NONBLOCK) < 0) {
-		perror("fcntl");
-		ret = -1;
-		goto out;
-	}
-out:
-	return ret;
-}
-
-static int udp_multicast_client_open(netdev_t *dev,
-		struct in_addr multicast_interface, struct in_addr maddr,
-		uint16_t mport)
-{
-	int ret;
-
-
-	dev->sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	if (dev->sockfd < 0) {
-		perror("socket(dev->sockfd)");
-		ret = -1;
-		goto out;
-	}
-
-	dev->dst_addr.sin_family = AF_INET;
-	dev->dst_addr.sin_port = mport;
-	dev->dst_addr.sin_addr.s_addr = maddr.s_addr;
-
-	// set the multicast interface
-	ret = setsockopt(dev->sockfd, IPPROTO_IP, IP_MULTICAST_IF, 
-	    (char *)&multicast_interface, sizeof(multicast_interface));
-	if(ret < 0) {
-		perror("setsockopt(IP_MULTICAST_IF)");
-		ret = -1;
-		goto out;
-	}
-
-	ret = connect(dev->sockfd, (struct sockaddr *)&dev->dst_addr,
-			sizeof(dev->dst_addr));
-	if(ret < 0) {
-		perror("connect");
-		ret = -1;
-		goto out;
-	}
-
-out:
-	return ret;
-}
-
-static int network_device_init(aoip_t *aoip)
-{
-	int ret;
-
-	net_config_t *config = &aoip->net.config;
-	netdev_t *ptp = &aoip->net.ptp;
-	netdev_t *rtp = &aoip->net.rtp;
-	netdev_t *sap = &aoip->net.sap;
-
-	ret = aoip->ops->nt_init(aoip);
+	ret = ctx->ops->nt_init(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->nt_init: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	// ptpfd
-	ret = udp_multicast_open(ptp, config->multicast_interface,
-			config->ptp_multicast_addr,
-			config->ptp_sync_msg_port);
-	if (ret < 0) {
-		ret = -1;
-		goto out;
+	// PTP
+	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, (uint8_t *)&config->local_addr) < 0) {
+		fprintf(stderr, "ptpc_create_context: failed\n");
+		return 1;
 	}
 
-	ret = udp_multicast_open(rtp, config->multicast_interface,
-			config->rtp_multicast_addr,
-			config->rtp_port);
-	if (ret < 0) {
-		ret = -1;
-		goto out;
-	}
-
-	// sapfd
-	ret = udp_multicast_client_open(sap, config->multicast_interface,
-			config->sap_multicast_addr, config->sap_port);
-	if (ret < 0) {
-		ret = -1;
-		goto out;
+	// SAP
+	if (sap_create_context(&ctx->sap, (uint8_t *)&config->local_addr) < 0) {
+		fprintf(stderr, "sap_create_context: failed\n");
+		return 1;
 	}
 
 out:
@@ -194,76 +85,49 @@ out:
 }
 
 static int
-network_device_release(aoip_t *aoip)
+network_device_release(aoip_ctx_t *ctx)
 {
-	netdev_t *ptp = &aoip->net.ptp;
-	netdev_t *rtp = &aoip->net.rtp;
-	netdev_t *sap = &aoip->net.sap;
+	network_t *net = &ctx->net;
 
 	int ret;
 
-	ret = aoip->ops->nt_release(aoip);
+	ret = ctx->ops->nt_release(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->nt_relase: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	close(ptp->sockfd);
-	ptp->sockfd = -1;
+	ptpc_context_destroy(&ctx->ptpc);
 
-	close(rtp->sockfd);
-	rtp->sockfd = -1;
+	sap_context_destroy(&ctx->sap);
 
-	close(sap->sockfd);
-	sap->sockfd = -1;
+	close(net->rtp_fd);
+	net->rtp_fd = -1;
 
 out:
 	return ret;
 }
 
-static void aoip_core_close(aoip_t *aoip)
+static void aoip_core_close(aoip_ctx_t *ctx)
 {
-	stats_t *stats = (stats_t *)&aoip->stats;
+	stats_t *stats = (stats_t *)&ctx->stats;
 
 	int i;
 	for (i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
-		free(aoip->queue.slot[i].data);
-		aoip->queue.slot[i].data = NULL;
+		free(ctx->queue.slot[i].data);
+		ctx->queue.slot[i].data = NULL;
 	}
 
-	free(aoip->queue.slot);
-	aoip->queue.slot = NULL;
+	free(ctx->queue.slot);
+	ctx->queue.slot = NULL;
 
 	printf("received_frames=%u\n", stats->received_frames);
 }
 
-static int sap_msg_init(network_t *net)
+int register_aoip_device(aoip_ctx_t *ctx, aoip_config_t *config)
 {
-	struct sap_msg *sap_msg = &net->sap_msg;
-	int ret;
-
-	const struct in_addr multicast_interface = net->config.multicast_interface;
-	const char *session_name = &net->config.device_name[0];
-	const struct in_addr maddr = net->config.rtp_multicast_addr;
-	const uint16_t mport = net->config.rtp_port;
-
-	ret = build_sap_payload(&sap_msg->payload, multicast_interface,
-			session_name, maddr, mport);
-	if (ret < 0) {
-		fprintf(stderr, "build_sap_message: failed\n");
-		ret = -1;
-		goto out;
-	} else {
-		sap_msg->len = (uint16_t)ret;
-	}
-
-out:
-	return ret;
-}
-
-int register_aoip_device(aoip_t *aoip, struct aoip_operations *ops)
-{
+	const struct aoip_operations *ops = ctx->ops;
 	int ret;
 
 	assert(ops->ao_init);
@@ -276,30 +140,22 @@ int register_aoip_device(aoip_t *aoip, struct aoip_operations *ops)
 	assert(ops->nt_open);
 	assert(ops->nt_close);
 
-	assert((ops->mode == MODE_RECORD && ops->ao_read && ops->nt_send) ||
-		(ops->mode == MODE_PLAYBACK && ops->ao_write && ops->nt_recv));
+	assert((config->aoip_mode == AOIP_MODE_RECORD && ops->ao_read && ops->nt_send) ||
+		(config->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_write && ops->nt_recv));
 
-	aoip->ops = ops;
-
-	ret = aoip_queue_init(&aoip->queue);
+	ret = aoip_queue_init(&ctx->queue);
 	if (ret < 0) {
 		ret = -1;
 		goto out;
 	}
 
-	ret = audio_device_init(aoip);
+	ret = audio_device_init(ctx, config);
 	if (ret < 0) {
 		ret = -1;
 		goto out;
 	}
 
-	ret = network_device_init(aoip);
-	if (ret < 0) {
-		ret = -1;
-		goto out;
-	}
-
-	ret = sap_msg_init(&aoip->net);
+	ret = network_device_init(ctx, config);
 	if (ret < 0) {
 		ret = -1;
 		goto out;
@@ -309,37 +165,36 @@ out:
 	return ret;
 }
 
-void unregister_aoip_device(aoip_t *aoip)
+void unregister_aoip_device(aoip_ctx_t *ctx)
 {
-    audio_device_release(aoip);
-	network_device_release(aoip);
-	aoip_core_close(aoip);
+    audio_device_release(ctx);
+	network_device_release(ctx);
+	aoip_core_close(ctx);
 
-	aoip->ops = NULL;
+	ctx->ops = NULL;
 }
 
-static int network_recv_loop(aoip_t *aoip)
+static int network_recv_loop(aoip_ctx_t *ctx)
 {
-	int count, ret = 0;
+	network_t *net = &ctx->net;
+	sap_ctx_t *sap = &ctx->sap;
 
-	network_t *net = &aoip->net;
-	network_timer_t *timer = &net->timer;
-	struct sap_msg *sap_msg = &net->sap_msg;
+	int count, ret = 0;
+	ns_t ptp_timer, sap_timer;
 
 	// timer reset
-	ns_gettime(&timer->ptp_timer);
-	ns_gettime(&timer->sap_timer);
+	ns_gettime(ptp_timer);
+	ns_gettime(sap_timer);
 
 	// send first sap :TODO
-	count = send(net->sap.sockfd, (char *)&sap_msg->payload,
-			sap_msg->len, 0);
+	count = send(sap->sap_fd, (char *)&sap->sap_msg.payload, sap->sap_msg.len, 0);
 	if (count < 1) {
 		perror("send(sap.sockfd)");
 		ret = -1;
 	}
 
-	while (!aoip->network_stop_flag) {
-		ret = aoip->ops->nt_recv(aoip);
+	while (!ctx->network_stop_flag) {
+		ret = ctx->ops->nt_recv(ctx);
 		if (ret < 0) {
 			fprintf(stderr, "ops->nt_recv: failed\n");
 			ret = -1;
@@ -352,14 +207,14 @@ static int network_recv_loop(aoip_t *aoip)
 	return ret;
 }
 
-static int network_send_loop(aoip_t *aoip)
+static int network_send_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
-	while (!aoip->network_stop_flag) {
+	while (!ctx->network_stop_flag) {
 		printf("network_send_loop()\n");
 
-		ret = aoip->ops->nt_send(aoip);
+		ret = ctx->ops->nt_send(ctx);
 		if (ret < 0) {
 			fprintf(stderr, "ops->nt_send: failed\n");
 			ret = -1;
@@ -372,40 +227,40 @@ static int network_send_loop(aoip_t *aoip)
 	return ret;
 }
 
-int network_cb_run(aoip_t *aoip)
+int network_cb_run(aoip_ctx_t *ctx)
 {
+	struct aoip_operations *ops = ctx->ops;
+
 	int ret;
 
-	struct aoip_operations *ops = aoip->ops;
-
-	ret = ops->nt_open(aoip);
+	ret = ops->nt_open(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->nt_open: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	if (ops->mode == MODE_NONE) {
+	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
-	} else if (ops->mode == MODE_PLAYBACK && ops->nt_recv) {
-		ret = network_recv_loop(aoip);
+	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK && ops->nt_recv) {
+		ret = network_recv_loop(ctx);
 		if (ret < 0) {
 		    ret = -1;
 		    goto out;
 		}
-	} else if (ops->mode == MODE_RECORD && ops->nt_send) {
-		ret = network_send_loop(aoip);
+	} else if (ctx->aoip_mode == AOIP_MODE_RECORD && ops->nt_send) {
+		ret = network_send_loop(ctx);
 		if (ret < 0) {
 		    ret = -1;
 		    goto out;
 		}
 	} else {
-		fprintf(stderr, "network_cb_run: unknown ops->mode: %d\n", ops->mode);
+		fprintf(stderr, "network_cb_run: unknown ops->mode: %d\n", ctx->aoip_mode);
 		ret = -1;
 		goto out;
 	}
 
-	ret = ops->nt_close(aoip);
+	ret = ops->nt_close(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->nt_close: failed\n");
 		ret = -1;
@@ -416,19 +271,19 @@ out:
 	return ret;
 }
 
-void network_cb_stop(aoip_t *aoip)
+void network_cb_stop(aoip_ctx_t *ctx)
 {
-	aoip->network_stop_flag = 1;
+	ctx->network_stop_flag = 1;
 }
 
-static int audio_record_loop(aoip_t *aoip)
+static int audio_record_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
-	while (!aoip->audio_stop_flag) {
+	while (!ctx->audio_stop_flag) {
 		printf("audio_record_loop()\n");
 
-		ret = aoip->ops->ao_read(aoip);
+		ret = ctx->ops->ao_read(ctx);
 		if (ret < 0) {
 			perror("ops->ao_read");
 			ret = -1;
@@ -441,12 +296,12 @@ static int audio_record_loop(aoip_t *aoip)
 	return ret;
 }
 
-static int audio_playback_loop(aoip_t *aoip)
+static int audio_playback_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
-	while (!aoip->audio_stop_flag) {
-		ret = aoip->ops->ao_write(aoip);
+	while (!ctx->audio_stop_flag) {
+		ret = ctx->ops->ao_write(ctx);
 		if (ret < 0) {
 			fprintf(stderr, "ops->ao_write: failed");
 			ret = -1;
@@ -459,40 +314,40 @@ static int audio_playback_loop(aoip_t *aoip)
 	return ret;
 }
 
-int audio_cb_run(aoip_t *aoip)
+int audio_cb_run(aoip_ctx_t *ctx)
 {
 	int ret;
 
-	struct aoip_operations *ops = aoip->ops;
+	struct aoip_operations *ops = ctx->ops;
 
-	ret = ops->ao_open(aoip);
+	ret = ops->ao_open(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->ao_open: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	if (ops->mode == MODE_NONE) {
+	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
-	} else if (ops->mode == MODE_PLAYBACK && ops->ao_read) {
-		ret = audio_record_loop(aoip);
+	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_read) {
+		ret = audio_record_loop(ctx);
 		if (ret < 0) {
 		    ret = -1;
 		    goto out;
 		}
-	} else if (ops->mode == MODE_RECORD && ops->ao_write) {
-		ret = audio_playback_loop(aoip);
+	} else if (ctx->aoip_mode == AOIP_MODE_RECORD && ops->ao_write) {
+		ret = audio_playback_loop(ctx);
 		if (ret < 0) {
 		    ret = -1;
 		    goto out;
 		}
 	} else {
-		fprintf(stderr, "audio_cb_run: unknown ops->mode: %d\n", ops->mode);
+		fprintf(stderr, "audio_cb_run: unknown ops->mode: %d\n", ctx->aoip_mode);
 		ret = -1;
 		goto out;
 	}
 
-	ret = ops->ao_close(aoip);
+	ret = ops->ao_close(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "ops->ao_close: failed\n");
 		ret = -1;
@@ -503,8 +358,8 @@ out:
 	return ret;
 }
 
-void audio_cb_stop(aoip_t *aoip)
+void audio_cb_stop(aoip_ctx_t *ctx)
 {
-	aoip->audio_stop_flag = 1;
+	ctx->audio_stop_flag = 1;
 }
 

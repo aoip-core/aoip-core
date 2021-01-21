@@ -1,7 +1,7 @@
-#include "ptpc/socket.h"
+#include "socket.h"
 
-int create_udp_socket_nonblock(uint16_t local_port)
-{
+int
+create_udp_socket_nonblock(void) {
 	int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (fd < 0) {
 		perror("socket(SOCK_DGRAM)");
@@ -23,16 +23,6 @@ int create_udp_socket_nonblock(uint16_t local_port)
 	}
 	 */
 
-	// bind
-	struct sockaddr_in saddr = {0};
-	saddr.sin_family = AF_INET;
-	saddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	saddr.sin_port = htons(local_port);
-	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
-		perror("bind");
-		goto err;
-	}
-
 out:
 	return fd;
 
@@ -41,7 +31,27 @@ err:
 	return -1;
 }
 
-int join_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_addr)
+int
+socket_bind(int fd, uint16_t local_port) {
+	struct sockaddr_in saddr = {0};
+
+	saddr.sin_family = AF_INET;
+	saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	saddr.sin_port = htons(local_port);
+	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
+		perror("bind");
+		goto err;
+	}
+
+	return fd;
+
+err:
+	close(fd);
+	return -1;
+}
+
+int
+join_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_addr)
 {
 	int ret = 0;
 

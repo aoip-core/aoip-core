@@ -1,8 +1,22 @@
 #include "myapp.h"
 
-static struct aoip_operations myapp_ops = {
-	.mode = MODE_PLAYBACK,
+static aoip_config_t myapp_config = {
+	.aoip_mode = AOIP_MODE_RECORD,
 
+	.audio_format = AUDIO_FORMAT_L24,
+	.audio_sampling_rate = 48,
+	.audio_channels = AUDIO_CHANNEL_STEREO,
+	.audio_packet_time = 1,
+
+	.session_name = "aoip-core v0.0.0",
+
+	.local_addr = "10.0.1.104",
+
+	.ptpc.ptp_mode = PTP_MODE_MULTICAST,
+	.ptpc.ptp_domain = 0,
+};
+
+static struct aoip_operations myapp_ops = {
 	.ao_init = myapp_ao_init,
 	.ao_release = myapp_ao_release,
 	.ao_open = myapp_ao_open,
@@ -20,18 +34,18 @@ static struct aoip_operations myapp_ops = {
 
 void *aoth_body(void *arg)
 {
-	aoip_t *aoip = (aoip_t *)arg;
+	aoip_ctx_t *ctx = (aoip_ctx_t *)arg;
 
-	audio_cb_run(aoip);
+	audio_cb_run(ctx);
 
 	return NULL;
 }
 
 void *ntth_body(void *arg)
 {
-	aoip_t *aoip = (aoip_t *)arg;
+	aoip_ctx_t *ctx = (aoip_ctx_t *)arg;
 
-	network_cb_run(aoip);
+	network_cb_run(ctx);
 
 	return NULL;
 }
@@ -50,24 +64,25 @@ int main(void)
 	}
 
 	// init aoip device
-	aoip_t aoip = {0};
+	aoip_ctx_t ctx = {0};
+	ctx.ops = &myapp_ops;
 
 	// audio and network threads
 	pthread_t aoth, ntth;
 
-	ret = register_aoip_device(&aoip, &myapp_ops);
+	ret = register_aoip_device(&ctx, &myapp_config);
 	if (ret < 0) {
 		fprintf(stderr, "register_aoip_device: failed\n");
 		return 1;
 	}
 
-	ret = pthread_create(&ntth, NULL, ntth_body, &aoip);
+	ret = pthread_create(&ntth, NULL, ntth_body, &ctx);
 	if (ret) {
 		perror("network pthread create");
 		return 1;
 	}
 
-	ret = pthread_create(&aoth, NULL, aoth_body, &aoip);
+	ret = pthread_create(&aoth, NULL, aoth_body, &ctx);
 	if (ret) {
 		perror("audio pthread create");
 		return 1;
@@ -77,8 +92,8 @@ int main(void)
 		sleep(1);
 	}
 
-	network_cb_stop(&aoip);
-	audio_cb_stop(&aoip);
+	network_cb_stop(&ctx);
+	audio_cb_stop(&ctx);
 
 	ret = pthread_join(ntth, NULL);
 	if (ret != 0) {
@@ -91,7 +106,7 @@ int main(void)
 		return 1;
 	}
 
-	unregister_aoip_device(&aoip);
+	unregister_aoip_device(&ctx);
 
 	return 0;
 }

@@ -1,21 +1,15 @@
 #include "myapp.h"
 #include "aoip/wav.h"
 
-int myapp_ao_init(aoip_t *aoip)
+int myapp_ao_init(aoip_ctx_t *ctx)
 {
-	audio_t *ao = &aoip->audio;
-	audio_config_t *config = &ao->config;
+	audio_t *ao = &ctx->audio;
 
 	int ret = 0;
 
-    config->format = AUDIO_FORMAT_L24;  // 24bit
-    config->sampling_rate = (PACKET_SAMPLES * PACKET_TIME);    // 48kHz
-    config->channels = AUDIO_CHANNEL_STEREO;  // 2ch
-    config->packet_time = PACKET_TIME;    // 1ms
-
     char file_name[] = "output.wav";
-	ao->dev.fd = wav_open(file_name);
-	if (ao->dev.fd < 0) {
+	ao->fd = wav_open(file_name);
+	if (ao->fd < 0) {
 		perror("open(ao->dev.fd)");
 		ret = -1;
 		goto out;
@@ -25,16 +19,16 @@ out:
 	return ret;
 }
 
-int myapp_ao_release(aoip_t *aoip)
+int myapp_ao_release(aoip_ctx_t *ctx)
 {
-	audio_t *ao = &aoip->audio;
+	audio_t *ao = &ctx->audio;
 
-	return ao->dev.fd = wav_close(ao->dev.fd);
+	return ao->fd = wav_close(ao->fd);
 }
 
-int myapp_ao_open(aoip_t *aoip)
+int myapp_ao_open(aoip_ctx_t *ctx)
 {
-	audio_t *ao = &aoip->audio;
+	audio_t *ao = &ctx->audio;
 
 	int ret = 0;
 	ssize_t count;
@@ -42,7 +36,7 @@ int myapp_ao_open(aoip_t *aoip)
 	struct wav_hdr wav_hdr = {};
 	build_wav_hdr(&wav_hdr);
 
-	count = init_wav_hdr(ao->dev.fd, &wav_hdr);
+	count = init_wav_hdr(ao->fd, &wav_hdr);
 	if (count < 1) {
 		perror("write(ao->dev.fd)");
 		ret = -1;
@@ -53,26 +47,26 @@ out:
 	return ret;
 }
 
-int myapp_ao_close(aoip_t *aoip)
+int myapp_ao_close(aoip_ctx_t *ctx)
 {
-	const audio_t *ao = &aoip->audio;
-    const stats_t *stats = &aoip->stats;
+	const audio_t *ao = &ctx->audio;
+    const stats_t *stats = &ctx->stats;
 
-	return update_wav_hdr(ao->dev.fd, stats->received_frames);
+	return update_wav_hdr(ao->fd, stats->received_frames);
 }
 
-int myapp_ao_read(aoip_t *aoip)
+int myapp_ao_read(aoip_ctx_t *ctx)
 {
     int ret = 0;
 
 	return ret;
 }
 
-int myapp_ao_write(aoip_t *aoip)
+int myapp_ao_write(aoip_ctx_t *ctx)
 {
-	stats_t *stats = &aoip->stats;
-	queue_t *queue = &aoip->queue;
-	audio_t *ao = &aoip->audio;
+	stats_t *stats = &ctx->stats;
+	queue_t *queue = &ctx->queue;
+	audio_t *ao = &ctx->audio;
 	uint8_t tmp[6];
 
 	int count = 0, ret = 0;
@@ -107,7 +101,7 @@ int myapp_ao_write(aoip_t *aoip)
 			tmp[3] = p[5+i];
 			tmp[4] = p[4+i];
 			tmp[5] = p[3+i];
-			count = write(ao->dev.fd, tmp, sizeof(tmp));
+			count = write(ao->fd, tmp, sizeof(tmp));
 			if (count < 1) {
 				perror("write(ao->dev.fd)");
 				ret = -1;

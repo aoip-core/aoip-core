@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 
-int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config)
+int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, uint8_t *local_addr)
 {
 	int ret = 0;
 
@@ -17,10 +17,10 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config)
 	memset(ctx, 0, sizeof(*ctx));
 
 	// local_addr
-	if (config->local_addr == NULL) {
+	if (local_addr == NULL) {
 		ctx->local_addr.s_addr = INADDR_ANY;
 	} else {
-		inet_pton(AF_INET, config->local_addr, &ctx->local_addr);
+		inet_pton(AF_INET, (const char *)local_addr, &ctx->local_addr);
 	}
 
 	// mcast_addr
@@ -37,8 +37,14 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config)
 	ctx->server_addr.sin_port = htons(PTP_EVENT_PORT);
 
 	// ptp_event_fd
-	if ((ctx->event_fd = create_udp_socket_nonblock(PTP_EVENT_PORT)) < 0) {
+	if ((ctx->event_fd = create_udp_socket_nonblock()) < 0) {
 		fprintf(stderr, "create_udp_socket_nonblock: failed\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (socket_bind(ctx->event_fd, PTP_EVENT_PORT) < 0) {
+		fprintf(stderr, "socket_bind: failed\n");
 		ret = -1;
 		goto out;
 	}
@@ -50,8 +56,14 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config)
 	}
 
 	// ptp_general_fd
-	if ((ctx->general_fd = create_udp_socket_nonblock(PTP_GENERAL_PORT)) < 0) {
+	if ((ctx->general_fd = create_udp_socket_nonblock()) < 0) {
 		fprintf(stderr, "create_udp_socket_nonblock: failed\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (socket_bind(ctx->general_fd, PTP_GENERAL_PORT) < 0) {
+		fprintf(stderr, "socket_bind: failed\n");
 		ret = -1;
 		goto out;
 	}

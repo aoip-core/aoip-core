@@ -1,4 +1,6 @@
 #include <aoip/sap.h>
+#include <unistd.h>
+#include <socket.h>
 
 /* sample sap
  * v=0
@@ -194,3 +196,52 @@ err:
 	return 0;
 }
 
+int
+sap_create_context(sap_ctx_t *ctx, uint8_t *local_addr)
+{
+	int ret = 0;
+
+	memset(ctx, 0, sizeof(*ctx));
+
+	// local_addr
+	if (local_addr == NULL) {
+		ctx->local_addr.s_addr = INADDR_ANY;
+	} else {
+		inet_pton(AF_INET, (const char *)local_addr, &ctx->local_addr);
+	}
+
+	// mcast_addr
+	inet_pton(AF_INET, SAP_MULTICAST_GROUP, &ctx->mcast_addr);
+
+	// sap_fd
+	if ((ctx->sap_fd = create_udp_socket_nonblock()) < 0) {
+		fprintf(stderr, "create_udp_socket_nonblock: failed\n");
+		ret = -1;
+		goto out;
+	}
+
+	// sap_msg
+	const char *session_name = "AOIP_CORE";
+	struct in_addr maddr;
+	inet_pton(AF_INET, "239.69.179.201", &maddr);
+	const uint16_t mport = 5004;
+	uint16_t count = build_sap_payload(&ctx->sap_msg.payload, ctx->local_addr,
+							session_name, maddr, mport);
+	if (count < 0) {
+		fprintf(stderr, "build_sap_message: failed\n");
+		ret = -1;
+		goto out;
+	} else {
+		ctx->sap_msg.len = count;
+	}
+
+out:
+	return ret;
+}
+
+void
+sap_context_destroy(sap_ctx_t *ctx)
+{
+	close(ctx->sap_fd);
+	ctx->sap_fd = -1;
+}
