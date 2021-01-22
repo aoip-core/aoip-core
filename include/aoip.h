@@ -17,7 +17,7 @@
 
 #include "aoip/utils.h"
 #include "aoip/timer.h"
-#include "aoip/aoip_socket.h"
+#include "aoip/socket.h"
 #include "aoip/ptp.h"
 #include "aoip/ptpc.h"
 #include <aoip/queue.h>

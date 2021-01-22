@@ -15,21 +15,21 @@ find_package(Threads REQUIRED)
 # libptpc
 add_library(ptpc STATIC
 		lib/ptpc.c
-		lib/aoip_socket.c)
+        lib/socket.c)
 target_include_directories(ptpc PUBLIC include)
 target_link_libraries(ptpc)
 
 # libsap
 add_library(sap STATIC
 		lib/sap.c
-		lib/aoip_socket.c)
+        lib/socket.c)
 target_include_directories(sap PUBLIC include)
 target_link_libraries(sap)
 
 # librtp
 add_library(rtp STATIC
 		lib/rtp.c
-		lib/aoip_socket.c)
+        lib/socket.c)
 target_include_directories(rtp PUBLIC include)
 target_link_libraries(rtp)
 
