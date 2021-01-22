@@ -136,7 +136,7 @@ void print_ptp_header(ptp_msg_t *ptp)
 	}
 }
 
-void build_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
+void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
 {
 	memset(msg, 0, sizeof(*msg));
 	msg->hdr.msgtype = PTP_MSGID_DELAY_REQ;
@@ -144,3 +144,81 @@ void build_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
 	msg->hdr.seqid = (++ctx->seqid) & 0xFFFF;
 	msg->hdr.msglen = sizeof(ptp_delay_req_t);
 }
+
+int recv_ptp_event_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+{
+	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
+
+	int ret = 0;
+
+	if (recv(ctx->event_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
+		//printf("ptp_event: count=zd\n"); //, count);
+
+		ns_gettime(&sync->recv_ts);
+
+		if (msg->hdr.ver != 2 || msg->hdr.ndomain != 0 || msg->hdr.msgtype != PTP_MSGID_SYNC) {
+			goto out;
+		}
+
+		if (sync->state == S_INIT) {
+			sync->seqid = msg->hdr.seqid;
+			sync->t1 = sync->recv_ts;
+			sync->state = S_SYNC;
+			sync->timeout_timer = sync->now;
+		}
+	}
+
+out:
+	return ret;
+}
+
+int recv_ptp_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+{
+	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
+
+	int ret = 0;
+
+	if (recv(ctx->general_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
+		if (msg->hdr.ver != 2 || msg->hdr.ndomain != 0) {
+			goto out;
+		}
+
+		// detected new ptp server?
+		if (msg->hdr.clockId != ctx->ptp_server_id) {
+			fprintf(stderr, "detected new ptp server.\n");
+			ret = -1;
+			goto out;
+		}
+
+		if (msg->hdr.seqid != sync->seqid) {
+			ptp_sync_state_reset(sync);
+			goto out;
+		}
+
+		if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
+			sync->t2 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
+
+			// send DELAY_REP
+			build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)&ctx->txbuf);
+			sendto(ctx->event_fd, &ctx->txbuf, sizeof(ptp_delay_req_t), 0,
+				   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr));
+			ns_gettime(&sync->t3);
+
+			sync->state = S_FOLLOW_UP;
+			sync->timeout_timer = sync->now;
+		} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
+			sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
+
+			// offset
+			ctx->ptp_offset = calc_ptp_offset(sync);
+
+			printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+			ptp_sync_state_reset(sync);
+			sync->timeout_timer = sync->now;
+		}
+	}
+
+out:
+	return ret;
+}
+

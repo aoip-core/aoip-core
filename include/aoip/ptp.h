@@ -38,6 +38,9 @@ static const char ptp_multicast_addr[][MAX_IPV4_ASCII_SIZE] = {
 #define PTP_EVENT_PORT 319
 #define PTP_GENERAL_PORT 320
 
+#define TIMEOUT_PTP_ANNOUNCE_TIMER (3 * NS_SEC)
+#define TIMEOUT_PTP_TIMER (2 * NS_SEC)
+
 struct ptp_common_hdr {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	uint8_t msgtype :4;

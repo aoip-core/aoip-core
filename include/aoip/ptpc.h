@@ -2,10 +2,13 @@
 
 #include <stdbool.h>
 #include <netinet/in.h>
+#include <inttypes.h>
 
 #include "timer.h"
 #include "aoip/ptp.h"
 #include "socket.h"
+
+#define PACKET_BUF_SIZE 256
 
 typedef enum {
 	PTP_MODE_NONE = 0,
@@ -38,12 +41,20 @@ typedef struct {
 	int event_fd;
 
 	int general_fd;
+
+	uint8_t *txbuf;
+
+	uint8_t *rxbuf;
 } ptpc_ctx_t;
 
 typedef struct {
 	ptp_sync_state_t state;
 
 	uint16_t seqid;
+
+	ns_t now;
+	ns_t recv_ts;
+	ns_t timeout_timer;
 
 	ns_t t1;
 	ns_t t2;
@@ -68,4 +79,6 @@ static inline int64_t calc_ptp_offset(ptpc_sync_ctx_t *sync)
 int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, uint8_t *);
 void ptpc_context_destroy(ptpc_ctx_t *);
 void print_ptp_header(ptp_msg_t *);
-void build_delay_req_msg(ptpc_sync_ctx_t *, ptp_delay_req_t *);
+void build_ptp_delay_req_msg(ptpc_sync_ctx_t *, ptp_delay_req_t *);
+int recv_ptp_event_packet(ptpc_ctx_t *, ptpc_sync_ctx_t *);
+int recv_ptp_general_packet(ptpc_ctx_t *, ptpc_sync_ctx_t *);

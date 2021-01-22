@@ -20,9 +20,9 @@
 #include "aoip/socket.h"
 #include "aoip/ptp.h"
 #include "aoip/ptpc.h"
-#include <aoip/queue.h>
-#include <aoip/sap.h>
-#include <aoip/rtp.h>
+#include "aoip/queue.h"
+#include "aoip/sap.h"
+#include "aoip/rtp.h"
 
 #define BIT_RATE        3            // 2: 16bit, 3: 24bit
 #define N_CHANNEL       2            // 2: stereo
