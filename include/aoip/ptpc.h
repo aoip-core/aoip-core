@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 
-#include "../timer.h"
-#include "ptp.h"
+#include "timer.h"
+#include "aoip/ptp.h"
 #include "aoip_socket.h"
 
 typedef enum {

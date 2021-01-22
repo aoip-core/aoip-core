@@ -15,14 +15,14 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "utils.h"
-#include "timer.h"
-#include "aoip_socket.h"
-#include "ptpc/ptp.h"
-#include "ptpc/ptpc.h"
+#include "aoip/utils.h"
+#include "aoip/timer.h"
+#include "aoip/aoip_socket.h"
+#include "aoip/ptp.h"
+#include "aoip/ptpc.h"
 #include <aoip/queue.h>
-#include <sap.h>
-#include <rtp.h>
+#include <aoip/sap.h>
+#include <aoip/rtp.h>
 
 #define BIT_RATE        3            // 2: 16bit, 3: 24bit
 #define N_CHANNEL       2            // 2: stereo

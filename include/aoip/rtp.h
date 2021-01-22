@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include <aoip_socket.h>
+#include <aoip/aoip_socket.h>
 
 #define RTP_MULTICAST_GROUP    "239.69.179.201"
 #define RTP_PORT               5004

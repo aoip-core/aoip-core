@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include <endian.h>
 
-#include <ptpc/ptpc.h>
+#include <aoip/ptpc.h>
 
 volatile sig_atomic_t caught_signal;
 

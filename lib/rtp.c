@@ -1,4 +1,4 @@
-#include <rtp.h>
+#include <aoip/rtp.h>
 
 int
 rtp_create_context(rtp_ctx_t *ctx, uint8_t *local_addr)

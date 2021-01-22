@@ -1,4 +1,4 @@
-#include <ptpc/ptpc.h>
+#include <aoip/ptpc.h>
 
 #include <stdio.h>
 #include <unistd.h>
