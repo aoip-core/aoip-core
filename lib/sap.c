@@ -22,7 +22,6 @@ int
 search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 {
 	char ascii_addr[MAX_IPV4_ASCII_SIZE] = {};
-	//uint8_t success_flg = 0, error_flg = 0;
 
 	char *p = (char *)&msg->payload.sdp[0];
 	char *end = (char *)&msg->payload.sdp[msg->len-1];
