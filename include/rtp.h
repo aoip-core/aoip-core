@@ -1,6 +1,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
+#include <aoip_socket.h>
 
 #define RTP_MULTICAST_GROUP    "239.69.179.201"
 #define RTP_PORT               5004
@@ -36,3 +41,13 @@ struct rtp_hdr {
     uint32_t ssrc;
 } __attribute__((packed));
 
+typedef struct {
+	struct in_addr local_addr;
+
+	struct in_addr mcast_addr;
+
+	int rtp_fd;
+} rtp_ctx_t;
+
+int rtp_create_context(rtp_ctx_t *, uint8_t *);
+void rtp_context_destroy(rtp_ctx_t *);

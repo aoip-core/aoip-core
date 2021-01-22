@@ -80,6 +80,12 @@ static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 		return 1;
 	}
 
+	// RTP
+	if (rtp_create_context(&ctx->rtp, (uint8_t *)&config->local_addr) < 0) {
+		fprintf(stderr, "rtp_create_context: failed\n");
+		return 1;
+	}
+
 out:
 	return ret;
 }
@@ -87,8 +93,6 @@ out:
 static int
 network_device_release(aoip_ctx_t *ctx)
 {
-	network_t *net = &ctx->net;
-
 	int ret;
 
 	ret = ctx->ops->nt_release(ctx);
@@ -102,8 +106,7 @@ network_device_release(aoip_ctx_t *ctx)
 
 	sap_context_destroy(&ctx->sap);
 
-	close(net->rtp_fd);
-	net->rtp_fd = -1;
+	rtp_context_destroy(&ctx->rtp);
 
 out:
 	return ret;
@@ -176,7 +179,6 @@ void aoip_context_destroy(aoip_ctx_t *ctx)
 
 static int network_recv_loop(aoip_ctx_t *ctx)
 {
-	network_t *net = &ctx->net;
 	sap_ctx_t *sap = &ctx->sap;
 
 	int count, ret = 0;

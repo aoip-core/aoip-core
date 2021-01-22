@@ -17,12 +17,12 @@
 
 #include "utils.h"
 #include "timer.h"
-#include "socket.h"
+#include "aoip_socket.h"
 #include "ptpc/ptp.h"
 #include "ptpc/ptpc.h"
 #include <aoip/queue.h>
-#include <aoip/rtp.h>
 #include <sap.h>
+#include <rtp.h>
 
 #define BIT_RATE        3            // 2: 16bit, 3: 24bit
 #define N_CHANNEL       2            // 2: stereo
@@ -71,10 +71,6 @@ typedef struct aoip_audio_dev {
 	int fd;
 } audio_t;
 
-typedef struct aoip_network_dev {
-	int rtp_fd;
-
-} network_t;
 
 struct aoip_operations;
 
@@ -86,10 +82,10 @@ typedef struct {
 	queue_t queue;
 
 	audio_t audio;
-	network_t net;
 
 	ptpc_ctx_t ptpc;
 	sap_ctx_t sap;
+	rtp_ctx_t rtp;
 
 	int audio_stop_flag;
 	int network_stop_flag;

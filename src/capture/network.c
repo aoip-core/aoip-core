@@ -33,7 +33,6 @@ int myapp_nt_close(aoip_ctx_t *ctx)
 int myapp_nt_recv(aoip_ctx_t *ctx)
 {
 	queue_t *queue = &ctx->queue;
-	network_t *net = &ctx->net;
 
 	ns_t now, ptp_timer = 0, sap_timer = 0;
 	int ret = 0, count = 0;
@@ -51,7 +50,7 @@ int myapp_nt_recv(aoip_ctx_t *ctx)
 
 	// receive RTP packets
 	queue_slot_t *slot = queue_write_ptr(queue);
-	count = recv(net->rtp_fd, slot->data,
+	count = recv(ctx->rtp.rtp_fd, slot->data,
 			(RTP_HDR_SIZE + DATA_QUEUE_SLOT_SIZE), 0);
 	if (count > 0) {
 		if (!queue_full(queue)) {

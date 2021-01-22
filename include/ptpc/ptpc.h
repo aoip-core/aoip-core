@@ -5,7 +5,7 @@
 
 #include "../timer.h"
 #include "ptp.h"
-#include "socket.h"
+#include "aoip_socket.h"
 
 typedef enum {
 	PTP_MODE_NONE = 0,
