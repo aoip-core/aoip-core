@@ -32,41 +32,28 @@ int set_signal(struct sigaction *sa, int sig) {
 
 int ptp_wait_announce_message(ptpc_ctx_t *ctx)
 {
-	struct sockaddr_in sender = {0};
-	socklen_t slen = sizeof(sender);
-	uint8_t buf[256] = {0};
-	ns_t now = 0, timer;
-	int ret = -1;
+	ptpc_sync_ctx_t sync = {0};
 
-	ns_gettime(&now);
-	timer = now;
+	int ret = 0;
 
-	while(ns_sub(now, timer) < TIMEOUT_PTP_ANNOUNCE_TIMER) {
-		const ptp_msg_t *msg = (ptp_msg_t *)&buf;
+	ns_gettime(&sync.now);
+	sync.timeout_timer = sync.now;
 
-		// get current time
-		ns_gettime(&now);
+	while(!caught_signal) {
+		ns_gettime(&sync.now);
 
-		// receive PTP general packets
-		if (recvfrom(ctx->general_fd, buf, sizeof(buf), 0, (struct sockaddr *)&sender, &slen) > 0) {
-			if (msg->hdr.ver != 0x2 && msg->hdr.msgtype != PTP_MSGID_ANNOUNCE) {
-				 continue;
-			}
-
-			if (msg->hdr.ndomain == 0 && flag_is_set(msg->hdr.flag, PTP_FLAG_TWO_STEP) &&
-				 !flag_is_set(msg->hdr.flag, PTP_FLAG_UNICAST)) {
-				 printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n", htobe64(msg->hdr.clockId));
-
-				 // server_addr
-				 ctx->server_addr.sin_addr.s_addr = sender.sin_addr.s_addr;
-
-				 // ctx->ptp_server_id
-				 ctx->ptp_server_id = msg->hdr.clockId;
-
-				 ret = 1;
-				 break;
-			}
+		if (recv_ptp_announce_msg(ctx, &sync)) {
+			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
+				  htobe64(ctx->ptp_server_id));
+			break;
 		}
+
+		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_ANNOUNCE_TIMER) {
+			fprintf(stderr, "ptp_timeout\n");
+			ret = -1;
+			break;
+		}
+
 		sched_yield();
 	}
 
@@ -86,16 +73,11 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 	sync.timeout_timer = sync.now;
 
 	while(!caught_signal) {
-		// timeout PTP timer
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
-			fprintf(stderr, "ptp_timeout\n");
-			ret = -1;
-			break;
-		}
+		ns_gettime(&sync.now);
 
 		// receive PTP event packets
-		if (recv_ptp_event_packet(ctx, &sync) < 0) {
-			fprintf(stderr, "recv_ptp_event_packet: failed\n");
+		if (recv_ptp_sync_msg(ctx, &sync) < 0) {
+			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
 			ret = -1;
 			break;
 		}
@@ -103,6 +85,12 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 		// receive PTP general packets
 		if (recv_ptp_general_packet(ctx, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
+			ret = -1;
+			break;
+		}
+
+		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
+			fprintf(stderr, "ptp_timeout\n");
 			ret = -1;
 			break;
 		}

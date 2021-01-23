@@ -89,8 +89,27 @@ void ptpc_context_destroy(ptpc_ctx_t *ctx)
 
 void print_ptp_header(ptp_msg_t *ptp)
 {
-	printf("ptp_common_hdr:\n"
-			"\ttsport: %u\n"
+	switch (ptp->hdr.msgtype) {
+		case PTP_MSGID_ANNOUNCE:
+			printf("ptp_announce_msg:\n");
+			break;
+		case PTP_MSGID_SYNC:
+			printf("ptp_sync_msg:\n");
+			break;
+		case PTP_MSGID_DELAY_REQ:
+			printf("ptp_delay_req_msg:\n");
+			break;
+		case PTP_MSGID_FOLLOW_UP:
+			printf("ptp_follow_up_msg:\n");
+			break;
+		case PTP_MSGID_DELAY_RESP:
+			printf("ptp_delay_resp_msg:\n");
+			break;
+		default:
+			break;
+	}
+
+	printf( "\ttsport: %u\n"
 			"\tmsgtype: %u\n"
 			"\tver: %u\n"
 			"\tmsglen: %u\n"
@@ -114,26 +133,6 @@ void print_ptp_header(ptp_msg_t *ptp)
 			(unsigned int)ptp->hdr.seqid,
 			ptp->hdr.ctrl,
 			ptp->hdr.logmsgintval);
-
-	switch (ptp->hdr.msgtype) {
-		case PTP_MSGID_ANNOUNCE:
-			printf("\tptp_announce_msg\n");
-			break;
-		case PTP_MSGID_SYNC:
-			printf("\tptp_sync_msg\n");
-			break;
-		case PTP_MSGID_DELAY_REQ:
-			printf("\tptp_delay_req_msg\n");
-			break;
-		case PTP_MSGID_FOLLOW_UP:
-			printf("\tptp_follow_up_msg\n");
-			break;
-		case PTP_MSGID_DELAY_RESP:
-			printf("\tptp_delay_resp_msg\n");
-			break;
-		default:
-			break;
-	}
 }
 
 void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
@@ -145,30 +144,48 @@ void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
 	msg->hdr.msglen = sizeof(ptp_delay_req_t);
 }
 
-int recv_ptp_event_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+int recv_ptp_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+{
+	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
+
+	struct sockaddr_in sender = {0};
+	socklen_t slen = sizeof(sender);
+	int ret = 0;
+
+	if (recvfrom(ctx->general_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0,
+			  (struct sockaddr *)&sender, &slen) > 0) {
+
+		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_ANNOUNCE) {
+			if (flag_is_set(msg->hdr.flag, PTP_FLAG_TWO_STEP) && !flag_is_set(msg->hdr.flag, PTP_FLAG_UNICAST)) {
+				ctx->server_addr.sin_addr.s_addr = sender.sin_addr.s_addr;
+				ctx->ptp_server_id = msg->hdr.clockId;
+				ret = 1;
+			}
+		}
+	}
+
+	return ret;
+}
+
+int recv_ptp_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
 	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
 
 	int ret = 0;
 
 	if (recv(ctx->event_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
-		//printf("ptp_event: count=zd\n"); //, count);
-
 		ns_gettime(&sync->recv_ts);
 
-		if (msg->hdr.ver != 2 || msg->hdr.ndomain != 0 || msg->hdr.msgtype != PTP_MSGID_SYNC) {
-			goto out;
-		}
-
-		if (sync->state == S_INIT) {
-			sync->seqid = msg->hdr.seqid;
-			sync->t1 = sync->recv_ts;
-			sync->state = S_SYNC;
-			sync->timeout_timer = sync->now;
+		if (msg->hdr.ver == 0x2 || msg->hdr.ndomain == 0 || msg->hdr.msgtype == PTP_MSGID_SYNC) {
+			if (sync->state == S_INIT) {
+				sync->seqid = msg->hdr.seqid;
+				sync->t1 = sync->recv_ts;
+				sync->state = S_SYNC;
+				sync->timeout_timer = sync->now;
+			}
 		}
 	}
 
-out:
 	return ret;
 }
 
@@ -179,7 +196,7 @@ int recv_ptp_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 	int ret = 0;
 
 	if (recv(ctx->general_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
-		if (msg->hdr.ver != 2 || msg->hdr.ndomain != 0) {
+		if (msg->hdr.ver != 0x2 || msg->hdr.ndomain != 0) {
 			goto out;
 		}
 
