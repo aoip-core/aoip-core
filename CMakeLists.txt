@@ -48,6 +48,10 @@ target_link_libraries(aoip sap ptpc rtp)
 add_executable(simple-ptpc src/simple-ptpc/simple-ptpc.c)
 target_link_libraries(simple-ptpc ptpc)
 
+# simple-sapc
+add_executable(simple-sapc src/simple-sapc/simple-sapc.c)
+target_link_libraries(simple-sapc sap)
+
 # capture
 add_executable(capture
 	src/capture/capture.c
