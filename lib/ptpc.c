@@ -140,8 +140,8 @@ void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
 	memset(msg, 0, sizeof(*msg));
 	msg->hdr.msgtype = PTP_MSGID_DELAY_REQ;
 	msg->hdr.ver = 2;
-	msg->hdr.seqid = (++ctx->seqid) & 0xFFFF;
-	msg->hdr.msglen = sizeof(ptp_delay_req_t);
+	msg->hdr.seqid = ctx->seqid; //(++ctx->seqid) & 0xFFFF;
+	msg->hdr.msglen = htons(sizeof(ptp_delay_req_t));
 }
 
 int recv_ptp_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
@@ -182,6 +182,7 @@ int recv_ptp_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 				sync->t1 = sync->recv_ts;
 				sync->state = S_SYNC;
 				sync->timeout_timer = sync->now;
+				//printf("SYNC_MSG:  hdr.clockId=%04X\n", htons(msg->hdr.seqid));
 			}
 		}
 	}
@@ -196,7 +197,7 @@ int recv_ptp_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 	int ret = 0;
 
 	if (recv(ctx->general_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
-		if (msg->hdr.ver != 0x2 || msg->hdr.ndomain != 0) {
+		if (msg->hdr.ver != 0x2 || msg->hdr.ndomain != 0 || msg->hdr.msgtype == PTP_MSGID_ANNOUNCE) {
 			goto out;
 		}
 
@@ -207,7 +208,9 @@ int recv_ptp_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 			goto out;
 		}
 
-		if (msg->hdr.seqid != sync->seqid) {
+		//printf("mismatch: state=%d, type=%d, hdr.clockId=%04X, ctx-seqid=%04X\n",
+		//	   sync->state, msg->hdr.msgtype, htons(msg->hdr.seqid), htons(sync->seqid));
+		if (msg->hdr.seqid > sync->seqid) {
 			ptp_sync_state_reset(sync);
 			goto out;
 		}

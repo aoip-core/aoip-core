@@ -2,9 +2,9 @@
 #include <sched.h>
 #include <signal.h>
 #include <endian.h>
+#include <malloc.h>
 
 #include <aoip/ptpc.h>
-#include <malloc.h>
 
 volatile sig_atomic_t caught_signal;
 
@@ -138,8 +138,12 @@ main(void)
 	}
 
 	free(ctx.rxbuf);
+	perror("free");
+	printf("owari1\n");
 	free(ctx.txbuf);
+	printf("owari2\n");
 	ptpc_context_destroy(&ctx);
+	printf("owari3\n");
 
 	return 0;
 }
