@@ -15,6 +15,8 @@
 #define SAP_MULTICAST_GROUP    "239.255.255.255"
 #define SAP_PORT               9875
 
+#define TIMEOUT_SAP_TIMER (30 * NS_SEC)
+
 #define SAP_HDR_SIZE        24
 
 #define MAX_SDP_DESC_SIZE   64
@@ -46,8 +48,7 @@ typedef struct {
 	struct sap_msg sap_msg;
 } sap_ctx_t;
 
-int search_rtp_addr_from_sap_msg(struct in_addr *,
-		const struct sap_msg *);
+int search_rtp_addr_from_sap_msg(struct in_addr *, const struct sap_msg *);
 int build_sap_msg(struct sap_msg *, uint8_t *, struct in_addr, struct in_addr,
 		uint8_t, uint32_t, uint8_t, uint64_t);
 int sap_create_context(sap_ctx_t *, struct in_addr);

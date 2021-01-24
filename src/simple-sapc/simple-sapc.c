@@ -30,7 +30,6 @@ int set_signal(struct sigaction *sa, int sig) {
 	return ret;
 }
 
-#define TIMEOUT_SAP_TIMER (30 * NS_SEC)
 int sap_loop(sap_ctx_t *ctx)
 {
 	ns_t timeout_timer, now;
