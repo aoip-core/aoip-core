@@ -24,7 +24,6 @@ typedef struct {
 	// PTP domain (default: 0).
 	// Currently ptpc only supports domain:0.
 	const uint8_t ptp_domain;
-
 } ptpc_config_t;
 
 typedef struct {

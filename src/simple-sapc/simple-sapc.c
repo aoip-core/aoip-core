@@ -4,12 +4,15 @@
 #include <endian.h>
 #include <malloc.h>
 
+#include <aoip.h>
 #include <aoip/sap.h>
 #include <aoip/timer.h>
 
 volatile sig_atomic_t caught_signal;
 
 static uint8_t local_addr[] = "10.0.1.104";
+static uint8_t session_name = "AOIP_CORE v0.0.0";
+
 
 void sig_handler(int sig) {
 	caught_signal = sig;
@@ -62,6 +65,7 @@ main(void)
 	}
 
 	sap_ctx_t ctx = {0};
+
 	if ((ctx.txbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
 		perror("calloc");
 		return 1;

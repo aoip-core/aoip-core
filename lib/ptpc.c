@@ -17,11 +17,7 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, uint8_t *l
 	memset(ctx, 0, sizeof(*ctx));
 
 	// local_addr
-	if (local_addr == NULL) {
-		ctx->local_addr.s_addr = INADDR_ANY;
-	} else {
-		inet_pton(AF_INET, (const char *)local_addr, &ctx->local_addr);
-	}
+	inet_pton(AF_INET, (const char *)local_addr, &ctx->local_addr);
 
 	// mcast_addr
 	if (config->ptp_domain == 0) {
