@@ -68,20 +68,24 @@ static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 		goto out;
 	}
 
+	// local_addr
+	inet_pton(AF_INET, (const char *)config->local_addr, &ctx->local_addr);
+
+
 	// PTP
-	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, (uint8_t *)&config->local_addr) < 0) {
+	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, ctx->local_addr) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		return 1;
 	}
 
 	// SAP
-	if (sap_create_context(&ctx->sap, (uint8_t *)&config->local_addr) < 0) {
+	if (sap_create_context(&ctx->sap, ctx->local_addr) < 0) {
 		fprintf(stderr, "sap_create_context: failed\n");
 		return 1;
 	}
 
 	// RTP
-	if (rtp_create_context(&ctx->rtp, (uint8_t *)&config->local_addr) < 0) {
+	if (rtp_create_context(&ctx->rtp, ctx->local_addr) < 0) {
 		fprintf(stderr, "rtp_create_context: failed\n");
 		return 1;
 	}
@@ -189,11 +193,11 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 	ns_gettime(&sap_timer);
 
 	// send first sap :TODO
-	count = send(sap->sap_fd, (char *)&sap->sap_msg.payload, sap->sap_msg.len, 0);
-	if (count < 1) {
-		perror("send(sap.sockfd)");
-		ret = -1;
-	}
+	//count = send(sap->sap_fd, (char *)&sap->sap_msg.data, sap->sap_msg.len, 0);
+	//if (count < 1) {
+	//	perror("send(sap.sockfd)");
+	//	ret = -1;
+	//}
 
 	while (!ctx->network_stop_flag) {
 		ret = ctx->ops->nt_recv(ctx);

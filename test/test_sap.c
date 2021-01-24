@@ -5,27 +5,33 @@
 static void
 test_build_sap_payload(void)
 {
-	struct sap_msg msg = {};
+	struct sap_msg msg = {0};
 
-	struct in_addr saddr = { .s_addr = 0x11223344 };
-	char sess_name[] = "HOGE";
-	struct in_addr rtp_addr = { .s_addr = 0xffeeddcc };
-	uint16_t rtp_port = 5004;
+	uint8_t stream_name[] = "AOIP_CORE v0.0.0";
+	struct in_addr local_addr = { .s_addr = 0x6801000a }; // 10.0.1.104
+	struct in_addr rtp_mcast_addr = { .s_addr = 0xc9b345ef }; // 239.69.179.201
+	uint8_t audio_format = 24; // L24
+	uint32_t audio_sampling_rate = 48000;
+	uint8_t audio_channels = 2;
+	uint64_t ptp_server_id = 0x782351feffc11d;
 
-	msg.len = build_sap_payload(&msg.payload, saddr,
-		sess_name, rtp_addr, rtp_port);
+	if (build_sap_msg(&msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
+					  audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
+		fprintf(stderr, "build_sap_msg: failed\n");
+	}
+
 	if (msg.len < 30) {  // min len
 		fprintf(stderr, "build_sap_msg: failed\n");
 	}
 
-	ok(msg.len == 279);
+	ok(msg.len == 280);
 }
 
 static void
 test_search_rtp_addr_from_sap_msg(void)
 {
 	struct sap_msg msg = {
-		.payload.sdp =
+		.data.sdp =
 			 "v=0\r\n"
 			 "o=- 1311738121 1311738121 IN IP4 192.168.1.1\r\n"
 			 "s=Stage left I/O\r\n"
@@ -40,7 +46,7 @@ test_search_rtp_addr_from_sap_msg(void)
 			 "a=mediaclk:direct=963214424\r\n",
 		.len = 0
 	};
-	msg.len = strlen(msg.payload.sdp);
+	msg.len = strlen(msg.data.sdp);
 	printf("msg.len=%d\n", msg.len);
 
 	struct in_addr correct_addr;

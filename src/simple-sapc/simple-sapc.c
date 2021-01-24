@@ -10,9 +10,13 @@
 
 volatile sig_atomic_t caught_signal;
 
-static uint8_t local_addr[] = "10.0.1.104";
-static uint8_t session_name = "AOIP_CORE v0.0.0";
-
+static uint8_t stream_name[] = "AOIP_CORE v0.0.0";
+static struct in_addr local_addr = { .s_addr = 0x6801000a }; // 10.0.1.104
+static struct in_addr rtp_mcast_addr = { .s_addr = 0xc9b345ef }; // 239.69.179.201
+static uint8_t audio_format = 24; // L24
+static uint32_t audio_sampling_rate = 48000;
+static uint8_t audio_channels = 2;
+static uint64_t ptp_server_id = 0x782351feffc11d;
 
 void sig_handler(int sig) {
 	caught_signal = sig;
@@ -38,12 +42,18 @@ int sap_loop(sap_ctx_t *ctx)
 	ns_gettime(&now);
 	timeout_timer = now;
 
+	if (build_sap_msg(&ctx->sap_msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
+		audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
+		fprintf(stderr, "build_sap_msg: failed\n");
+		return 1;
+	}
+
 	while(!caught_signal) {
 		ns_gettime(&now);
 
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			if (send_sap_msg(ctx)) {
-			}
+		if (ns_sub(now, timeout_timer) >= TIMEOUT_SAP_TIMER) {
+			//if (send_sap_msg(ctx)) { }
+			printf("send sap_msg\n");
 			timeout_timer = now;
 		}
 
@@ -66,12 +76,7 @@ main(void)
 
 	sap_ctx_t ctx = {0};
 
-	if ((ctx.txbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
-
-	if (sap_create_context(&ctx, (uint8_t *)&local_addr) < 0) {
+	if (sap_create_context(&ctx, local_addr) < 0) {
 		fprintf(stderr, "sap_create_context: failed\n");
 		return 1;
 	}
@@ -81,7 +86,6 @@ main(void)
 		return 1;
 	}
 
-	free(ctx.txbuf);
 	sap_context_destroy(&ctx);
 
 	return 0;

@@ -76,6 +76,7 @@ struct aoip_operations;
 
 typedef struct {
 	uint8_t aoip_mode;
+	struct in_addr local_addr;
 
 	stats_t stats;
 

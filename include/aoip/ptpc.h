@@ -75,7 +75,7 @@ static inline int64_t calc_ptp_offset(ptpc_sync_ctx_t *sync)
 	return (int64_t)sync->t2 + (int64_t)sync->t4 - (int64_t)sync->t1 - (int64_t)sync->t3 / 2;
 }
 
-int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, uint8_t *);
+int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, struct in_addr);
 void ptpc_context_destroy(ptpc_ctx_t *);
 void print_ptp_header(ptp_msg_t *);
 void build_ptp_delay_req_msg(ptpc_sync_ctx_t *, ptp_delay_req_t *);

@@ -23,8 +23,8 @@ search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 {
 	char ascii_addr[MAX_IPV4_ASCII_SIZE] = {};
 
-	char *p = (char *)&msg->payload.sdp[0];
-	char *end = (char *)&msg->payload.sdp[msg->len-1];
+	char *p = (char *)&msg->data.sdp[0];
+	char *end = (char *)&msg->data.sdp[msg->len-1];
 
 	// v=0
 	if (*p != 'v' || *(p+1) != '=' || *(p+2) != '0') {
@@ -70,31 +70,32 @@ search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 #define SESSION_NAME  "s=%s\r\n"
 #define CONNECT_INFO  "c=IN IP4 %s/32\r\n"
 #define TIME_ACTIVE   "t=0 0\r\n"
-#define MEDIA_NAME    "m=audio %d RTP/AVP 96\r\n"
+#define MEDIA_NAME    "m=audio 5004 RTP/AVP 96\r\n"
 //#define MEDIA_TITLE   "i=Channels 1-8\r\n"
-#define MEDIA_ATTR0   "a=rtpmap:96 L24/48000/8\r\n"
+#define MEDIA_ATTR0   "a=rtpmap:96 L%d/%d/%d\r\n"
 #define MEDIA_ATTR1   "a=recvonly\r\n"
 #define MEDIA_ATTR2   "a=ptime:1\r\n"
-#define MEDIA_ATTR3   "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:0\r\n"
-#define MEDIA_ATTR4   "a=mediaclk:direct=%d\r\n"
+#define MEDIA_ATTR3   "a=ts-refclk:ptp=IEEE1588-2008:%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X:0\r\n"
+#define MEDIA_ATTR4   "a=mediaclk:direct=0\r\n"
 
-uint16_t
-build_sap_payload(struct sap_payload *payload,
-		const struct in_addr src_addr, const char *session_name,
-		const struct in_addr rtp_addr, const uint16_t rtp_port)
+int
+build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_addr,
+		struct in_addr rtp_mcast_addr, uint8_t audio_format, uint32_t audio_sampling_rate,
+				uint8_t audio_channels, uint64_t ptp_server_id)
 {
+	struct sap_payload *data = &msg->data;
 	int ret, now;
 
 	/* SAP message */
-	payload->flags = 0x20;
-	payload->authlen = 0;
-	payload->msg_id_hash = 0;
-	payload->origin_source = 0x10111213;
-	strncpy(payload->payload_type, SAP_PAYLOAD_TYPE, 16);
+	data->flags = 0x20;
+	data->authlen = 0;
+	data->msg_id_hash = 0;
+	data->origin_source = 0x10111213;
+	strncpy(data->payload_type, SAP_PAYLOAD_TYPE, 16);
 
 	/* SDP message */
-	const char *st = &payload->sdp[0];
-	char *cur = &payload->sdp[0];
+	const char *st = &data->sdp[0];
+	char *cur = &data->sdp[0];
 
 	// version description
 	ret = snprintf(cur, MAX_SDP_DESC_SIZE, VER_DESC);
@@ -106,8 +107,7 @@ build_sap_payload(struct sap_payload *payload,
 
 	// owner ID 
 	now = time(NULL);
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, OWNER_ID, now, now,
-			inet_ntoa(src_addr));
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, OWNER_ID, now, now, inet_ntoa(local_addr));
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
@@ -115,7 +115,7 @@ build_sap_payload(struct sap_payload *payload,
 	cur += ret;
 
 	// session name
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, SESSION_NAME, session_name);
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, SESSION_NAME, stream_name);
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
@@ -123,7 +123,7 @@ build_sap_payload(struct sap_payload *payload,
 	cur += ret;
 
 	// connect info
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, CONNECT_INFO, inet_ntoa(rtp_addr));
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, CONNECT_INFO, inet_ntoa(rtp_mcast_addr));
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
@@ -139,7 +139,7 @@ build_sap_payload(struct sap_payload *payload,
 	cur += ret;
 
 	// media name
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_NAME, rtp_port);
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_NAME);
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
@@ -147,7 +147,8 @@ build_sap_payload(struct sap_payload *payload,
 	cur += ret;
 
 	// media attr0
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR0);
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR0, audio_format,
+				audio_sampling_rate, audio_channels);
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
@@ -171,7 +172,9 @@ build_sap_payload(struct sap_payload *payload,
 	cur += ret;
 
 	// media attr3
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR3);
+	const uint8_t *id = (uint8_t *)&ptp_server_id;
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR3,
+				id[0], id[1], id[2], id[3], id[4], id[5], id[6], id[7]);
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
@@ -179,57 +182,46 @@ build_sap_payload(struct sap_payload *payload,
 	cur += ret; 
 
 	// media attr4
-	now = time(NULL);
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR4, now);
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR4);
 	if (ret < 0) {
 		perror("snprintf");
 		goto err;
 	}
 	cur += ret;
 
-	return SAP_HDR_SIZE + (cur - st);
+	// sap_msg.len
+	msg->len = SAP_HDR_SIZE + (cur - st);
+
+	return 0;
 
 err:
-	return 0;
+	return -1;
 }
 
 int
-sap_create_context(sap_ctx_t *ctx, uint8_t *local_addr)
+sap_create_context(sap_ctx_t *ctx, struct in_addr local_addr)
 {
 	int ret = 0;
 
 	memset(ctx, 0, sizeof(*ctx));
 
 	// local_addr
-	if (local_addr == NULL) {
-		ctx->local_addr.s_addr = INADDR_ANY;
-	} else {
-		inet_pton(AF_INET, (const char *)local_addr, &ctx->local_addr);
-	}
+	ctx->local_addr = local_addr;
 
 	// mcast_addr
 	inet_pton(AF_INET, SAP_MULTICAST_GROUP, &ctx->mcast_addr);
 
 	// sap_fd
-	if ((ctx->sap_fd = create_udp_socket_nonblock()) < 0) {
-		fprintf(stderr, "create_udp_socket_nonblock: failed\n");
+	if ((ctx->sap_fd = aoip_socket_udp_nonblock()) < 0) {
+		fprintf(stderr, "aoip_socket_udp_nonblock: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	// sap_msg
-	const char *session_name = "AOIP_CORE";
-	struct in_addr maddr;
-	inet_pton(AF_INET, "239.69.179.201", &maddr);
-	const uint16_t mport = 5004;
-	uint16_t count = build_sap_payload(&ctx->sap_msg.payload, ctx->local_addr,
-							session_name, maddr, mport);
-	if (count < 0) {
-		fprintf(stderr, "build_sap_message: failed\n");
+	if (aoip_mcast_interface(ctx->sap_fd, ctx->local_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_interface: failed\n");
 		ret = -1;
 		goto out;
-	} else {
-		ctx->sap_msg.len = count;
 	}
 
 out:

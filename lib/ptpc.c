@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 
-int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, uint8_t *local_addr)
+int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, struct in_addr local_addr)
 {
 	int ret = 0;
 
@@ -17,7 +17,7 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, uint8_t *l
 	memset(ctx, 0, sizeof(*ctx));
 
 	// local_addr
-	inet_pton(AF_INET, (const char *)local_addr, &ctx->local_addr);
+	ctx->local_addr = local_addr;
 
 	// mcast_addr
 	if (config->ptp_domain == 0) {
@@ -33,39 +33,51 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, uint8_t *l
 	ctx->server_addr.sin_port = htons(PTP_EVENT_PORT);
 
 	// ptp_event_fd
-	if ((ctx->event_fd = create_udp_socket_nonblock()) < 0) {
-		fprintf(stderr, "create_udp_socket_nonblock: failed\n");
+	if ((ctx->event_fd = aoip_socket_udp_nonblock()) < 0) {
+		fprintf(stderr, "aoip_socket_udp_nonblock: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	if (socket_bind(ctx->event_fd, PTP_EVENT_PORT) < 0) {
-		fprintf(stderr, "socket_bind: failed\n");
+	if (aoip_bind(ctx->event_fd, PTP_EVENT_PORT) < 0) {
+		fprintf(stderr, "aoip_bind: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	if (join_mcast_membership(ctx->event_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
-		fprintf(stderr, "join_mcast_membership: failed\n");
+	if (aoip_mcast_interface(ctx->event_fd, ctx->local_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_interface: failed\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (aoip_mcast_membership(ctx->event_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_membership: failed\n");
 		ret = -1;
 		goto out;
 	}
 
 	// ptp_general_fd
-	if ((ctx->general_fd = create_udp_socket_nonblock()) < 0) {
-		fprintf(stderr, "create_udp_socket_nonblock: failed\n");
+	if ((ctx->general_fd = aoip_socket_udp_nonblock()) < 0) {
+		fprintf(stderr, "aoip_socket_udp_nonblock: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	if (socket_bind(ctx->general_fd, PTP_GENERAL_PORT) < 0) {
-		fprintf(stderr, "socket_bind: failed\n");
+	if (aoip_bind(ctx->general_fd, PTP_GENERAL_PORT) < 0) {
+		fprintf(stderr, "aoip_bind: failed\n");
 		ret = -1;
 		goto out;
 	}
 
-	if (join_mcast_membership(ctx->general_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
-		fprintf(stderr, "join_mcast_membership: failed\n");
+	if (aoip_mcast_interface(ctx->general_fd, ctx->local_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_interface: failed\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (aoip_mcast_membership(ctx->general_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_membership: failed\n");
 		ret = -1;
 		goto out;
 	}

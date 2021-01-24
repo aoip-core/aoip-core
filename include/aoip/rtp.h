@@ -49,5 +49,5 @@ typedef struct {
 	int rtp_fd;
 } rtp_ctx_t;
 
-int rtp_create_context(rtp_ctx_t *, uint8_t *);
+int rtp_create_context(rtp_ctx_t *, struct in_addr);
 void rtp_context_destroy(rtp_ctx_t *);

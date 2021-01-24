@@ -33,7 +33,7 @@ struct sap_payload {
 
 struct sap_msg {
 	uint16_t len;
-	struct sap_payload payload;
+	struct sap_payload data;
 };
 
 typedef struct {
@@ -48,8 +48,7 @@ typedef struct {
 
 int search_rtp_addr_from_sap_msg(struct in_addr *,
 		const struct sap_msg *);
-uint16_t build_sap_payload(struct sap_payload *,
-		struct in_addr, const char *,
-		struct in_addr, uint16_t);
-int sap_create_context(sap_ctx_t *, uint8_t *);
+int build_sap_msg(struct sap_msg *, uint8_t *, struct in_addr, struct in_addr,
+		uint8_t, uint32_t, uint8_t, uint64_t);
+int sap_create_context(sap_ctx_t *, struct in_addr);
 void sap_context_destroy(sap_ctx_t *);

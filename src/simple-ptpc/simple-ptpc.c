@@ -8,7 +8,7 @@
 
 volatile sig_atomic_t caught_signal;
 
-uint8_t local_addr[MAX_IPV4_ASCII_SIZE+1];
+struct in_addr local_addr = { .s_addr = 0x6801000a }; //10.0.1.104
 
 static const ptpc_config_t ptp_config = {
 		.ptp_mode = PTP_MODE_MULTICAST,

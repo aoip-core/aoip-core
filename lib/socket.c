@@ -1,7 +1,7 @@
 #include "aoip/socket.h"
 
 int
-create_udp_socket_nonblock(void) {
+aoip_socket_udp_nonblock(void) {
 	int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (fd < 0) {
 		perror("socket(SOCK_DGRAM)");
@@ -32,7 +32,7 @@ err:
 }
 
 int
-socket_bind(int fd, uint16_t local_port) {
+aoip_bind(int fd, uint16_t local_port) {
 	struct sockaddr_in saddr = {0};
 
 	saddr.sin_family = AF_INET;
@@ -51,7 +51,7 @@ err:
 }
 
 int
-join_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_addr)
+aoip_mcast_interface(int fd, struct in_addr local_addr)
 {
 	int ret = 0;
 
@@ -59,8 +59,15 @@ join_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_ad
 	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF, &local_addr, sizeof(local_addr)) < 0) {
 		perror("setsockopt(IP_MULTICAST_IF)");
 		ret = -1;
-		goto out;
 	}
+
+	return ret;
+}
+
+int
+aoip_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_addr)
+{
+	int ret = 0;
 
 	// Multicast membership
 	// idf_edp (lwip) doesn't support ip_mreqn
@@ -70,10 +77,8 @@ join_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_ad
 	if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &req, sizeof(req)) < 0) {
 		perror("setsockopt(IP_ADD_MEMBERSHIP)");
 		ret = -1;
-		goto out;
 	}
 
-out:
 	return ret;
 }
 
