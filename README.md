@@ -22,5 +22,13 @@ Synced. sequence=55549, offset=156832531048756
 Synced. sequence=55805, offset=156833341937846
 Synced. sequence=56061, offset=156833763767357
 ^C
+
+# SAP client
+$ ./simple-ptpc
+215767253614769: send sap_msg
+215797253614863: send sap_msg
+215827253614990: send sap_msg
+215857253615025: send sap_msg
+^C
 ```
 

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sched.h>
 #include <signal.h>
+#include <inttypes.h>
 
 #include <aoip/sap.h>
 #include <aoip/timer.h>
@@ -13,7 +14,7 @@ static struct in_addr rtp_mcast_addr = { .s_addr = 0xc9b345ef }; // 239.69.179.2
 static uint8_t audio_format = 24; // L24
 static uint32_t audio_sampling_rate = 48000;
 static uint8_t audio_channels = 2;
-static uint64_t ptp_server_id = 0x782351feffc11d;
+static uint64_t ptp_server_id = 0x11111111ff1111;
 
 void sig_handler(int sig) {
 	caught_signal = sig;
@@ -35,9 +36,6 @@ int sap_loop(sap_ctx_t *ctx)
 	ns_t timeout_timer, now;
 	int ret = 0;
 
-	ns_gettime(&now);
-	timeout_timer = now;
-
 	if (build_sap_msg(&ctx->sap_msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
 		audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
 		fprintf(stderr, "build_sap_msg: failed\n");
@@ -45,6 +43,10 @@ int sap_loop(sap_ctx_t *ctx)
 		goto err;
 	}
 
+	ns_gettime(&now);
+	timeout_timer = now;
+
+	printf("%"PRIu64": send sap_msg\n", now);
 	if (sendto(ctx->sap_fd, &ctx->sap_msg, sizeof(ctx->sap_msg), 0,
 			   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
 		perror("send");
@@ -56,7 +58,7 @@ int sap_loop(sap_ctx_t *ctx)
 		ns_gettime(&now);
 
 		if (ns_sub(now, timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			printf("send sap_msg\n");
+			printf("%"PRIu64": send sap_msg\n", now);
 			if (sendto(ctx->sap_fd, &ctx->sap_msg, sizeof(ctx->sap_msg), 0,
 					   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
 				perror("send");
