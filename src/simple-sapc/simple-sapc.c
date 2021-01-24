@@ -45,21 +45,35 @@ int sap_loop(sap_ctx_t *ctx)
 	if (build_sap_msg(&ctx->sap_msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
 		audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
 		fprintf(stderr, "build_sap_msg: failed\n");
-		return 1;
+		ret = -1;
+		goto err;
+	}
+
+	if (sendto(ctx->sap_fd, &ctx->sap_msg, sizeof(ctx->sap_msg), 0,
+			   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
+		perror("send");
+		ret = -1;
+		goto err;
 	}
 
 	while(!caught_signal) {
 		ns_gettime(&now);
 
 		if (ns_sub(now, timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			//if (send_sap_msg(ctx)) { }
 			printf("send sap_msg\n");
+			if (sendto(ctx->sap_fd, &ctx->sap_msg, sizeof(ctx->sap_msg), 0,
+					   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
+				perror("send");
+				ret = -1;
+				break;
+			}
 			timeout_timer = now;
 		}
 
 		sched_yield();
 	}
 
+err:
 	return ret;
 }
 
@@ -82,7 +96,7 @@ main(void)
 	}
 
 	if (sap_loop(&ctx) < 0) {
-		fprintf(stderr, "ptp_sync_loop: failed\n");
+		fprintf(stderr, "sap_sync_loop: failed\n");
 		return 1;
 	}
 

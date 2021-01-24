@@ -39,7 +39,7 @@ struct sap_msg {
 typedef struct {
 	struct in_addr local_addr;
 
-	struct in_addr mcast_addr;
+	struct sockaddr_in mcast_addr;
 
 	int sap_fd;
 

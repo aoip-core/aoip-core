@@ -209,7 +209,9 @@ sap_create_context(sap_ctx_t *ctx, struct in_addr local_addr)
 	ctx->local_addr = local_addr;
 
 	// mcast_addr
-	inet_pton(AF_INET, SAP_MULTICAST_GROUP, &ctx->mcast_addr);
+	ctx->mcast_addr.sin_family = AF_INET;
+	ctx->mcast_addr.sin_port = htons(SAP_PORT);
+	inet_pton(AF_INET, SAP_MULTICAST_GROUP, &ctx->mcast_addr.sin_addr);
 
 	// sap_fd
 	if ((ctx->sap_fd = aoip_socket_udp_nonblock()) < 0) {

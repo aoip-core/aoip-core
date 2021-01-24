@@ -226,7 +226,7 @@ int recv_ptp_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 				// send DELAY_REP
 				build_ptp_delay_req_msg(sync, (ptp_delay_req_t *) &ctx->txbuf);
 				sendto(ctx->event_fd, &ctx->txbuf, sizeof(ptp_delay_req_t), 0,
-					   (struct sockaddr *) &ctx->server_addr, sizeof(ctx->server_addr));
+					   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr));
 				ns_gettime(&sync->t3);
 
 				sync->state = S_FOLLOW_UP;
