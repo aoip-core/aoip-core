@@ -1,10 +1,7 @@
 #include <stdio.h>
 #include <sched.h>
 #include <signal.h>
-#include <endian.h>
-#include <malloc.h>
 
-#include <aoip.h>
 #include <aoip/sap.h>
 #include <aoip/timer.h>
 
