@@ -14,6 +14,8 @@ static aoip_config_t myapp_config = {
 
 	.ptpc.ptp_mode = PTP_MODE_MULTICAST,
 	.ptpc.ptp_domain = 0,
+
+	.rtp.rtp_mode = RTP_MODE_RECV,
 };
 
 static struct aoip_operations myapp_ops = {

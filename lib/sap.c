@@ -87,6 +87,8 @@ build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_ad
 	struct sap_payload *data = &msg->data;
 	int ret, now;
 
+	memset(msg, 0, sizeof(*msg));
+
 	/* SAP message */
 	data->flags = 0x20;
 	data->authlen = 0;

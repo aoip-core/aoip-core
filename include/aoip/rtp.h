@@ -11,6 +11,8 @@
 #define RTP_PORT               5004
 #define RTP_HDR_SIZE    12
 
+#define PACKET_BUF_SIZE 512
+
 struct rtp_hdr {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
     uint8_t csrc_count :4;
@@ -41,13 +43,29 @@ struct rtp_hdr {
     uint32_t ssrc;
 } __attribute__((packed));
 
+typedef enum {
+	RTP_MODE_NONE = 0,
+	RTP_MODE_RECV,
+	RTP_MODE_SEND,
+} rtp_mode_t;
+
+typedef struct {
+	rtp_mode_t rtp_mode;
+} rtp_config_t;
+
 typedef struct {
 	struct in_addr local_addr;
 
 	struct in_addr mcast_addr;
 
 	int rtp_fd;
+
+	uint8_t *txbuf;
+
+	uint8_t *rxbuf;
 } rtp_ctx_t;
 
-int rtp_create_context(rtp_ctx_t *, struct in_addr);
+int rtp_create_context(rtp_ctx_t *, const rtp_config_t *, struct in_addr);
 void rtp_context_destroy(rtp_ctx_t *);
+int recv_rtp_packet(rtp_ctx_t *);
+

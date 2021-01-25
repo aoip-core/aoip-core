@@ -113,6 +113,7 @@ main(void)
 	}
 
 	ptpc_ctx_t ctx = {0};
+
 	if ((ctx.txbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
 		perror("calloc");
 		return 1;

@@ -85,7 +85,7 @@ static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 	}
 
 	// RTP
-	if (rtp_create_context(&ctx->rtp, ctx->local_addr) < 0) {
+	if (rtp_create_context(&ctx->rtp, &config->rtp, ctx->local_addr) < 0) {
 		fprintf(stderr, "rtp_create_context: failed\n");
 		return 1;
 	}

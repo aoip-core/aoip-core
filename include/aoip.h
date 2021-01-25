@@ -61,6 +61,7 @@ typedef struct {
 	uint8_t local_addr[MAX_IPV4_ASCII_SIZE+1];
 
 	ptpc_config_t ptpc;
+	rtp_config_t rtp;
 } aoip_config_t;
 
 typedef struct aoip_stats {

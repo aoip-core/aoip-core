@@ -9,12 +9,19 @@ aoip_socket_udp_nonblock(void) {
 	}
 
 	// non-blocking
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
+	int flags;
+	if ((flags = fcntl(fd, F_GETFL, 0)) < 0) {
+		perror("fcntl");
+		goto err;
+	}
+
+	flags |= O_NONBLOCK;
+	if (fcntl(fd, F_SETFL, flags) < 0) {
 		perror("fcntl(O_NONBLOCK)");
 		goto err;
 	}
 
-	/*
+/*
 	// SO_REUSEADDR
 	int one = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
