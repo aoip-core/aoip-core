@@ -3,8 +3,9 @@
 #include <signal.h>
 #include <inttypes.h>
 
-#include <aoip/sap.h>
+#include <aoip/rtp.h>
 #include <aoip/timer.h>
+#include <aoip.h>
 
 volatile sig_atomic_t caught_signal;
 
@@ -14,7 +15,7 @@ static struct in_addr rtp_mcast_addr = { .s_addr = 0xc9b345ef }; // 239.69.179.2
 static uint8_t audio_format = 24; // L24
 static uint32_t audio_sampling_rate = 48000;
 static uint8_t audio_channels = 2;
-static uint64_t ptp_server_id = 0x782351feffc11d00;
+static uint64_t ptp_server_id = 0x11111111ff1111;
 
 void sig_handler(int sig) {
 	caught_signal = sig;
@@ -31,14 +32,15 @@ int set_signal(struct sigaction *sa, int sig) {
 	return ret;
 }
 
-int sap_loop(sap_ctx_t *ctx)
+/*
+int rtp_loop(rtp_ctx_t *ctx)
 {
 	ns_t timeout_timer, now;
 	int ret = 0;
 
-	if (build_sap_msg(&ctx->sap_msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
-		audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
-		fprintf(stderr, "build_sap_msg: failed\n");
+	if (build_rtp_msg(&ctx->rtp_msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
+					  audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
+		fprintf(stderr, "build_rtp_msg: failed\n");
 		ret = -1;
 		goto err;
 	}
@@ -46,8 +48,8 @@ int sap_loop(sap_ctx_t *ctx)
 	ns_gettime(&now);
 	timeout_timer = now;
 
-	printf("%"PRIu64": send sap_msg\n", now);
-	if (sendto(ctx->sap_fd, &ctx->sap_msg.data, ctx->sap_msg.len, 0,
+	printf("%"PRIu64": send rtp_msg\n", now);
+	if (sendto(ctx->rtp_fd, &ctx->rtp_msg, sizeof(ctx->rtp_msg), 0,
 			   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
 		perror("send");
 		ret = -1;
@@ -57,9 +59,9 @@ int sap_loop(sap_ctx_t *ctx)
 	while(!caught_signal) {
 		ns_gettime(&now);
 
-		if (ns_sub(now, timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			printf("%"PRIu64": send sap_msg\n", now);
-			if (sendto(ctx->sap_fd, &ctx->sap_msg.data, ctx->sap_msg.len, 0,
+		if (ns_sub(now, timeout_timer) >= TIMEOUT_RTP_TIMER) {
+			printf("%"PRIu64": send rtp_msg\n", now);
+			if (sendto(ctx->rtp_fd, &ctx->rtp_msg, sizeof(ctx->rtp_msg), 0,
 					   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
 				perror("send");
 				ret = -1;
@@ -71,9 +73,10 @@ int sap_loop(sap_ctx_t *ctx)
 		sched_yield();
 	}
 
-err:
+	err:
 	return ret;
 }
+*/
 
 int
 main(void)
@@ -86,19 +89,21 @@ main(void)
 		return 1;
 	}
 
-	sap_ctx_t ctx = {0};
+	rtp_ctx_t ctx = {0};
 
-	if (sap_create_context(&ctx, local_addr) < 0) {
-		fprintf(stderr, "sap_create_context: failed\n");
+	if (rtp_create_context(&ctx, local_addr) < 0) {
+		fprintf(stderr, "rtp_create_context: failed\n");
 		return 1;
 	}
 
-	if (sap_loop(&ctx) < 0) {
-		fprintf(stderr, "sap_sync_loop: failed\n");
+	/*
+	if (rtp_loop(&ctx) < 0) {
+		fprintf(stderr, "rtp_sync_loop: failed\n");
 		return 1;
 	}
+	 */
 
-	sap_context_destroy(&ctx);
+	rtp_context_destroy(&ctx);
 
 	return 0;
 }

@@ -52,6 +52,10 @@ target_link_libraries(simple-ptpc ptpc)
 add_executable(simple-sapc src/simple-sapc/simple-sapc.c)
 target_link_libraries(simple-sapc sap)
 
+# simple-rtpc
+add_executable(simple-rtpc src/simple-rtpc/simple-rtpc.c)
+target_link_libraries(simple-rtpc rtp)
+
 # capture
 add_executable(capture
 	src/capture/capture.c

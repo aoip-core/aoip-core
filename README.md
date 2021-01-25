@@ -32,3 +32,6 @@ $ ./simple-ptpc
 ^C
 ```
 
+### License
+
+MIT

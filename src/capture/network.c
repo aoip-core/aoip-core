@@ -81,7 +81,7 @@ int myapp_nt_recv(aoip_ctx_t *ctx)
 
 		printf("sap_timeout\n");
 
-		count = send(ctx->sap.sap_fd, (char *)&sap_msg->payload,
+		count = send(ctx->sap.sap_fd, (char *)&sap_msg->data,
 				sap_msg->len, 0);
 		if (count < 1) {
 			perror("send(sap.sockfd)");

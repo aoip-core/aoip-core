@@ -71,6 +71,7 @@ search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 #define CONNECT_INFO  "c=IN IP4 %s/32\r\n"
 #define TIME_ACTIVE   "t=0 0\r\n"
 #define MEDIA_NAME    "m=audio 5004 RTP/AVP 96\r\n"
+//#define MEDIA_TITLE   "i=2 channels: Left, Right\r\n"
 //#define MEDIA_TITLE   "i=Channels 1-8\r\n"
 #define MEDIA_ATTR0   "a=rtpmap:96 L%d/%d/%d\r\n"
 #define MEDIA_ATTR1   "a=recvonly\r\n"
@@ -89,8 +90,8 @@ build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_ad
 	/* SAP message */
 	data->flags = 0x20;
 	data->authlen = 0;
-	data->msg_id_hash = 0;
-	data->origin_source = 0x10111213;
+	data->msg_id_hash = 0x3776;
+	data->origin_source = local_addr.s_addr;
 	strncpy(data->payload_type, SAP_PAYLOAD_TYPE, 16);
 
 	/* SDP message */
@@ -145,6 +146,16 @@ build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_ad
 		goto err;
 	}
 	cur += ret;
+
+/*
+	// media title
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_TITLE);
+	if (ret < 0) {
+		perror("snprintf");
+		goto err;
+	}
+	cur += ret;
+ */
 
 	// media attr0
 	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR0, audio_format,
