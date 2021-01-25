@@ -50,9 +50,9 @@ typedef struct {
 	uint8_t aoip_mode;
 
 	uint8_t audio_format;
-	uint8_t audio_sampling_rate;
+	uint32_t audio_sampling_rate;
 	uint8_t audio_channels;
-	uint8_t audio_packet_time;
+	uint16_t audio_packet_time;
 
 	uint8_t session_name[MAX_DEVICE_NAME_SIZ];
 

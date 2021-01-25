@@ -58,6 +58,8 @@ typedef struct {
 
 	struct in_addr mcast_addr;
 
+	uint16_t rtp_packet_length;
+
 	int rtp_fd;
 
 	uint8_t *txbuf;
@@ -68,4 +70,4 @@ typedef struct {
 int rtp_create_context(rtp_ctx_t *, const rtp_config_t *, struct in_addr);
 void rtp_context_destroy(rtp_ctx_t *);
 int recv_rtp_packet(rtp_ctx_t *);
-
+void build_rtp_packet(rtp_ctx_t *, struct rtp_hdr *);

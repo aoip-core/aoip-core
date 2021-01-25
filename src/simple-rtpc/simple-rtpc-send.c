@@ -9,10 +9,16 @@
 
 volatile sig_atomic_t caught_signal;
 
+static struct in_addr rtp_mcast_addr = { .s_addr = 0xc9b345ef }; // 239.69.179.201
+static uint8_t audio_format = 24; // L24
+static uint32_t audio_sampling_rate = 48000;
+static uint8_t audio_channels = 2;
+uint16_t audio_packet_time = 1000;
+
 static struct in_addr local_addr = { .s_addr = 0x6801000a }; // 10.0.1.104
 
 static const rtp_config_t rtp_config = {
-		.rtp_mode = RTP_MODE_RECV,
+		.rtp_mode = RTP_MODE_SEND,
 };
 
 void sig_handler(int sig) {
@@ -35,7 +41,7 @@ void rtp_loop(rtp_ctx_t *ctx)
 	const struct rtp_hdr *rtp_hdr = (struct rtp_hdr *)&ctx->rxbuf;
 
 	while(!caught_signal) {
-		if (recv_rtp_packet(ctx)) {
+		if (send_rtp_packet(ctx)) {
 			printf("SSRC=%04X, Time=%u, Seq=%u\n",
 					htonl(rtp_hdr->ssrc), htonl(rtp_hdr->timestamp), htons(rtp_hdr->sequence));
 		}
