@@ -42,8 +42,8 @@ void rtp_loop(rtp_ctx_t *ctx)
 
 	while(!caught_signal) {
 		if (recv_rtp_packet(ctx)) {
-			printf("Time=%u, Seq=%u\n",
-					htonl(rtp_hdr->timestamp), htons(rtp_hdr->sequence));
+			printf("SSRC=%04X, Time=%u, Seq=%u\n",
+					htonl(rtp_hdr->ssrc), htonl(rtp_hdr->timestamp), htons(rtp_hdr->sequence));
 		}
 
 		sched_yield();

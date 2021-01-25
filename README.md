@@ -30,6 +30,15 @@ $ ./simple-ptpc
 215827253614990: send sap_msg
 215857253615025: send sap_msg
 ^C
+
+# RTP recv
+$ ./simple-rtp-recv
+SSRC=E421B926, Time=110209895, Seq=26760, 
+SSRC=E421B926, Time=110209943, Seq=26761, 
+SSRC=E421B926, Time=110209991, Seq=26762, 
+SSRC=E421B926, Time=110210039, Seq=26763, 
+SSRC=E421B926, Time=110210087, Seq=26764,
+^C
 ```
 
 ### License
