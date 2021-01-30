@@ -14,8 +14,13 @@
 #define TONE_FREQ_B4 493.9f
 #define TONE_FREQ_C5 523.3f
 
+typedef union {
+	int32_t i32;
+	uint8_t u8[4];
+} l24_t;
+
 static inline float_t generate_tone_data(float_t period) {
        return sinf(TWO_PI * period);
 }
 
-void float_to_l24(uint8_t *, float_t);
+void float_to_l24(float_t, int32_t *);
