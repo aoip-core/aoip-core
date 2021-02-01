@@ -142,13 +142,8 @@ int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 	assert(ops->ao_open);
 	assert(ops->ao_close);
 
-	assert(ops->nt_init);
-	assert(ops->nt_release);
-	assert(ops->nt_open);
-	assert(ops->nt_close);
-
-	assert((config->aoip_mode == AOIP_MODE_RECORD && ops->ao_read && ops->nt_send) ||
-		(config->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_write && ops->nt_recv));
+	assert((config->aoip_mode == AOIP_MODE_RECORD && ops->ao_read) ||
+		(config->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_write));
 
 	ret = aoip_queue_init(&ctx->queue);
 	if (ret < 0) {

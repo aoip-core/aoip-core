@@ -56,9 +56,9 @@ target_link_libraries(simple-sapc sap)
 add_executable(simple-rtpc-recv src/simple-rtpc/simple-rtpc-recv.c)
 target_link_libraries(simple-rtpc-recv rtp)
 
-# simple-rtpc-send
-add_executable(simple-rtpc-send src/simple-rtpc/simple-rtpc-send.c)
-target_link_libraries(simple-rtpc-send rtp)
+# tonegen
+add_executable(tonegen src/tonegen/tonegen.c)
+target_link_libraries(tonegen aoip)
 
 # capture
 add_executable(capture

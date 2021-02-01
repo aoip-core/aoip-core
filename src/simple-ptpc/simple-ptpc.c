@@ -30,36 +30,6 @@ int set_signal(struct sigaction *sa, int sig) {
 	return ret;
 }
 
-int ptp_wait_announce_message(ptpc_ctx_t *ctx)
-{
-	ptpc_sync_ctx_t sync = {0};
-
-	int ret = 0;
-
-	ns_gettime(&sync.now);
-	sync.timeout_timer = sync.now;
-
-	while(!caught_signal) {
-		ns_gettime(&sync.now);
-
-		if (recv_ptp_announce_msg(ctx, &sync)) {
-			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
-				  htobe64(ctx->ptp_server_id));
-			break;
-		}
-
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_ANNOUNCE_TIMER) {
-			fprintf(stderr, "ptp_timeout\n");
-			ret = -1;
-			break;
-		}
-
-		sched_yield();
-	}
-
-	return ret;
-}
-
 int ptp_sync_loop(ptpc_ctx_t *ctx)
 {
 	ptpc_sync_ctx_t sync = {0};
@@ -76,14 +46,14 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 		ns_gettime(&sync.now);
 
 		// receive PTP event packets
-		if (recv_ptp_sync_msg(ctx, &sync) < 0) {
+		if (ptpc_recv_sync_msg(ctx, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
 			ret = -1;
 			break;
 		}
 
 		// receive PTP general packets
-		if (recv_ptp_general_packet(ctx, &sync) < 0) {
+		if (ptpc_recv_general_packet(ctx, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
 			ret = -1;
 			break;
@@ -113,22 +83,17 @@ main(void)
 	}
 
 	ptpc_ctx_t ctx = {0};
-
-	if ((ctx.txbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
-	if ((ctx.rxbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
+	uint8_t txbuf[PACKET_BUF_SIZE] = {0};
+	ctx.txbuf = txbuf;
+	uint8_t rxbuf[PACKET_BUF_SIZE] = {0};
+	ctx.rxbuf = rxbuf;
 
 	if (ptpc_create_context(&ctx, &ptp_config, local_addr) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		return 1;
 	}
 
-	if (ptp_wait_announce_message(&ctx) < 0) {
+	if (ptpc_announce_msg_loop(&ctx) < 0) {
 		fprintf(stderr, "ptp_wait_announce_message: failed\n");
 		return 1;
 	}
@@ -138,8 +103,6 @@ main(void)
 		return 1;
 	}
 
-	free(ctx.rxbuf);
-	free(ctx.txbuf);
 	ptpc_context_destroy(&ctx);
 
 	return 0;
