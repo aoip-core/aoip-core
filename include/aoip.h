@@ -32,6 +32,7 @@
 #define DATA_QUEUE_SLOT_SIZE  (BIT_RATE * N_CHANNEL * PACKET_SAMPLES)
 #define DATA_QUEUE_SLOT_NUM  512
 
+#define AOIP_PACKET_BUF_SIZE 512
 
 /*
  * structure describing AES67 context
@@ -82,6 +83,8 @@ typedef struct {
 	stats_t stats;
 
 	queue_t queue;
+	uint8_t *txbuf;
+	uint8_t *rxbuf;
 
 	audio_t audio;
 
@@ -103,10 +106,6 @@ struct aoip_operations {
 	int (*ao_read)(aoip_ctx_t *ctx);
 	int (*ao_write)(aoip_ctx_t *ctx);
 
-	int (*nt_init)(aoip_ctx_t *ctx);
-	int (*nt_release)(aoip_ctx_t *ctx);
-	int (*nt_open)(aoip_ctx_t *ctx);
-	int (*nt_close)(aoip_ctx_t *ctx);
 	int (*nt_recv)(aoip_ctx_t *ctx);
 	int (*nt_send)(aoip_ctx_t *ctx);
 };

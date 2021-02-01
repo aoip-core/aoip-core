@@ -26,10 +26,6 @@ static struct aoip_operations myapp_ops = {
 	.ao_read = myapp_ao_read,
 	.ao_write = myapp_ao_write,
 
-	.nt_init = myapp_nt_init,
-	.nt_release = myapp_nt_release,
-	.nt_open = myapp_nt_open,
-	.nt_close = myapp_nt_close,
 	.nt_recv = myapp_nt_recv,
 	.nt_send = myapp_nt_send,
 };

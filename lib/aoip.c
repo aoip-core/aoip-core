@@ -61,16 +61,20 @@ static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 {
 	int ret;
 
-	ret = ctx->ops->nt_init(ctx);
-	if (ret < 0) {
-		fprintf(stderr, "ops->nt_init: failed\n");
-		ret = -1;
-		goto out;
-	}
-
 	// local_addr
 	inet_pton(AF_INET, (const char *)config->local_addr, &ctx->local_addr);
 
+	// txbuf
+	if (ctx->txbuf == NULL) {
+		fprintf(stderr, "txbuf isn't allocated\n");
+		return 1;
+	}
+
+	// rxbuf
+	if (ctx->txbuf == NULL) {
+		fprintf(stderr, "rxbuf isn't allocated\n");
+		return 1;
+	}
 
 	// PTP
 	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, ctx->local_addr) < 0) {
@@ -94,26 +98,12 @@ out:
 	return ret;
 }
 
-static int
+static void
 network_device_release(aoip_ctx_t *ctx)
 {
-	int ret;
-
-	ret = ctx->ops->nt_release(ctx);
-	if (ret < 0) {
-		fprintf(stderr, "ops->nt_relase: failed\n");
-		ret = -1;
-		goto out;
-	}
-
 	ptpc_context_destroy(&ctx->ptpc);
-
 	sap_context_destroy(&ctx->sap);
-
 	rtp_context_destroy(&ctx->rtp);
-
-out:
-	return ret;
 }
 
 static void aoip_core_close(aoip_ctx_t *ctx)
@@ -173,6 +163,8 @@ void aoip_context_destroy(aoip_ctx_t *ctx)
 	network_device_release(ctx);
 	aoip_core_close(ctx);
 
+	ctx->txbuf = NULL;
+	ctx->rxbuf = NULL;
 	ctx->ops = NULL;
 }
 
@@ -232,14 +224,7 @@ int network_cb_run(aoip_ctx_t *ctx)
 {
 	struct aoip_operations *ops = ctx->ops;
 
-	int ret;
-
-	ret = ops->nt_open(ctx);
-	if (ret < 0) {
-		fprintf(stderr, "ops->nt_open: failed\n");
-		ret = -1;
-		goto out;
-	}
+	int ret = 0;
 
 	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
@@ -257,13 +242,6 @@ int network_cb_run(aoip_ctx_t *ctx)
 		}
 	} else {
 		fprintf(stderr, "network_cb_run: unknown ops->mode: %d\n", ctx->aoip_mode);
-		ret = -1;
-		goto out;
-	}
-
-	ret = ops->nt_close(ctx);
-	if (ret < 0) {
-		fprintf(stderr, "ops->nt_close: failed\n");
 		ret = -1;
 		goto out;
 	}

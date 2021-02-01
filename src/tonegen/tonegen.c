@@ -1,10 +1,16 @@
 #include <stdio.h>
 #include <sched.h>
 #include <signal.h>
-#include <endian.h>
-#include <malloc.h>
+#include <pthread.h>
 
 #include <aoip.h>
+
+int tonegen_ao_init(aoip_ctx_t *);
+int tonegen_ao_release(aoip_ctx_t *);
+int tonegen_ao_open(aoip_ctx_t *);
+int tonegen_ao_close(aoip_ctx_t *);
+int tonegen_ao_read(aoip_ctx_t *);
+int tonegen_ao_write(aoip_ctx_t *);
 
 volatile sig_atomic_t caught_signal;
 
@@ -26,13 +32,13 @@ static aoip_config_t tonegen_config = {
 		.rtp.rtp_mode = RTP_MODE_SEND,
 };
 
-static struct aoip_operations myapp_ops = {
-		.ao_init = myapp_ao_init,
-		.ao_release = myapp_ao_release,
-		.ao_open = myapp_ao_open,
-		.ao_close = myapp_ao_close,
-		.ao_read = myapp_ao_read,
-		.ao_write = myapp_ao_write,
+static struct aoip_operations tonegen_ops = {
+		.ao_init = tonegen_ao_init,
+		.ao_release = tonegen_ao_release,
+		.ao_open = tonegen_ao_open,
+		.ao_close = tonegen_ao_close,
+		.ao_read = tonegen_ao_read,
+		.ao_write = tonegen_ao_write,
 };
 
 void sig_handler(int sig) {
@@ -50,34 +56,22 @@ int set_signal(struct sigaction *sa, int sig) {
 	return ret;
 }
 
-int ptp_wait_announce_message(ptpc_ctx_t *ctx)
+void *aoth_body(void *arg)
 {
-	ptpc_sync_ctx_t sync = {0};
+	aoip_ctx_t *ctx = (aoip_ctx_t *)arg;
 
-	int ret = 0;
+	audio_cb_run(ctx);
 
-	ns_gettime(&sync.now);
-	sync.timeout_timer = sync.now;
+	return NULL;
+}
 
-	while(!caught_signal) {
-		ns_gettime(&sync.now);
+void *ntth_body(void *arg)
+{
+	aoip_ctx_t *ctx = (aoip_ctx_t *)arg;
 
-		if (recv_ptp_announce_msg(ctx, &sync)) {
-			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
-				   htobe64(ctx->ptp_server_id));
-			break;
-		}
+	network_cb_run(ctx);
 
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_ANNOUNCE_TIMER) {
-			fprintf(stderr, "ptp_timeout\n");
-			ret = -1;
-			break;
-		}
-
-		sched_yield();
-	}
-
-	return ret;
+	return NULL;
 }
 
 int ptp_sync_loop(ptpc_ctx_t *ctx)
@@ -96,14 +90,14 @@ int ptp_sync_loop(ptpc_ctx_t *ctx)
 		ns_gettime(&sync.now);
 
 		// receive PTP event packets
-		if (recv_ptp_sync_msg(ctx, &sync) < 0) {
+		if (ptpc_recv_sync_msg(ctx, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
 			ret = -1;
 			break;
 		}
 
 		// receive PTP general packets
-		if (recv_ptp_general_packet(ctx, &sync) < 0) {
+		if (ptpc_recv_general_packet(ctx, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
 			ret = -1;
 			break;
@@ -132,34 +126,54 @@ main(void)
 		return 1;
 	}
 
+	// init aoip device
 	aoip_ctx_t ctx = {0};
+	uint8_t txbuf[AOIP_PACKET_BUF_SIZE] = {0};
+	uint8_t rxbuf[AOIP_PACKET_BUF_SIZE] = {0};
 
-	if ((ctx.txbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
-	if ((ctx.rxbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
+	ctx.ops = &tonegen_ops;
+	ctx.txbuf = txbuf;
+	ctx.rxbuf = rxbuf;
 
 	if (aoip_create_context(&ctx, &tonegen_config) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		return 1;
 	}
 
-	if (ptp_wait_announce_message(&ctx) < 0) {
+	// audio and network threads
+	pthread_t aoth, ntth;
+	if (pthread_create(&ntth, NULL, ntth_body, &ctx)) {
+		perror("network pthread create");
+		return 1;
+	}
+
+	if (pthread_create(&aoth, NULL, aoth_body, &ctx)) {
+		perror("audio pthread create");
+		return 1;
+	}
+
+	if (ptpc_announce_msg_loop(&ctx.ptpc) < 0) {
 		fprintf(stderr, "ptp_wait_announce_message: failed\n");
 		return 1;
 	}
 
-	if (ptp_sync_loop(&ctx) < 0) {
-		fprintf(stderr, "ptp_sync_loop: failed\n");
+	while (!caught_signal) {
+		sleep(1);
+	}
+
+	network_cb_stop(&ctx);
+	audio_cb_stop(&ctx);
+
+	if (pthread_join(ntth, NULL) != 0) {
+		perror("network thread join");
 		return 1;
 	}
 
-	free(ctx.rxbuf);
-	free(ctx.txbuf);
+	if (pthread_join(aoth, NULL) != 0) {
+		perror("audio thread join");
+		return 1;
+	}
+
 	aoip_context_destroy(&ctx);
 
 	return 0;

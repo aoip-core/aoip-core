@@ -1,33 +1,5 @@
 #include "myapp.h"
 
-int myapp_nt_init(aoip_ctx_t *ctx)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int myapp_nt_release(aoip_ctx_t *ctx)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int myapp_nt_open(aoip_ctx_t *ctx)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int myapp_nt_close(aoip_ctx_t *ctx)
-{
-	int ret = 0;
-
-	return ret;
-}
-
 #define TIMEOUT_PTP_TIMER    (2 * 1000000000UL)
 #define TIMEOUT_SAP_TIMER    (30 * 1000000000UL)
 int myapp_nt_recv(aoip_ctx_t *ctx)
@@ -55,10 +27,6 @@ int myapp_nt_recv(aoip_ctx_t *ctx)
 	if (count > 0) {
 		if (!queue_full(queue)) {
 			struct rtp_hdr *rtp = (struct rtp_hdr *)&slot->data[0];
-			//printf( "rtp.version=%u, rtp.payload_type=%u, "
-			//	"rtp.sequence=%u, rtp.timestamp=%u\n",
-			//		rtp->version, rtp->payload_type,
-			//		ntohs(rtp->sequence), ntohl(rtp->timestamp));
 			slot->tstamp = ntohl(rtp->timestamp);
 			slot->len = count;
 			queue_write_next(queue);
