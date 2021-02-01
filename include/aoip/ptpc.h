@@ -82,4 +82,5 @@ void build_ptp_delay_req_msg(ptpc_sync_ctx_t *, ptp_delay_req_t *);
 
 int ptpc_recv_sync_msg(ptpc_ctx_t *, ptpc_sync_ctx_t *);
 int ptpc_recv_general_packet(ptpc_ctx_t *, ptpc_sync_ctx_t *);
-int ptpc_announce_msg_loop(ptpc_ctx_t *);
+int ptpc_recv_announce_msg(ptpc_ctx_t *, ptpc_sync_ctx_t *);
+

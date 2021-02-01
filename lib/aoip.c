@@ -125,30 +125,31 @@ static void aoip_core_close(aoip_ctx_t *ctx)
 int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 {
 	const struct aoip_operations *ops = ctx->ops;
-	int ret;
+
+	int ret = 0;
 
 	assert(ops->ao_init);
 	assert(ops->ao_release);
 	assert(ops->ao_open);
 	assert(ops->ao_close);
 
-	assert((config->aoip_mode == AOIP_MODE_RECORD && ops->ao_read) ||
-		(config->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_write));
+	assert((config->aoip_mode == AOIP_MODE_RECORD && ops->ao_write) ||
+		(config->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_read));
 
-	ret = aoip_queue_init(&ctx->queue);
-	if (ret < 0) {
+	// ctx->aoip_mode
+	ctx->aoip_mode = config->aoip_mode;
+
+	if (aoip_queue_init(&ctx->queue) < 0) {
 		ret = -1;
 		goto out;
 	}
 
-	ret = audio_device_init(ctx, config);
-	if (ret < 0) {
+	if (audio_device_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
 
-	ret = network_device_init(ctx, config);
-	if (ret < 0) {
+	if (network_device_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
@@ -202,51 +203,84 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 
 static int network_send_loop(aoip_ctx_t *ctx)
 {
+	ptpc_ctx_t *ptp_ctx = &ctx->ptpc;
+
+	ptpc_sync_ctx_t sync = {0};
+	sync.state = S_INIT;
+
 	int ret = 0;
 
+	ns_gettime(&sync.now);
+	sync.timeout_timer = sync.now;
 	while (!ctx->network_stop_flag) {
-		printf("network_send_loop()\n");
+		ns_gettime(&sync.now);
 
-		ret = ctx->ops->nt_send(ctx);
-		if (ret < 0) {
-			fprintf(stderr, "ops->nt_send: failed\n");
-			ret = -1;
+		if (ptpc_recv_announce_msg(ptp_ctx, &sync)) {
+			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
+				   htobe64(ptp_ctx->ptp_server_id));
 			break;
 		}
 
-		sleep(1);
+		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_ANNOUNCE_TIMER) {
+			fprintf(stderr, "ptp_timeout\n");
+			ret = -1;
+			goto out;
+		}
+
+		sched_yield();
 	}
 
+	ns_gettime(&sync.now);
+	sync.timeout_timer = sync.now;
+	while (!ctx->network_stop_flag) {
+		ns_gettime(&sync.now);
+
+		// receive PTP event packets
+		if (ptpc_recv_sync_msg(ptp_ctx, &sync) < 0) {
+			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
+			ret = -1;
+			goto out;
+		}
+
+		// receive PTP general packets
+		if (ptpc_recv_general_packet(ptp_ctx, &sync) < 0) {
+			fprintf(stderr, "recv_ptp_general_packet: failed\n");
+			ret = -1;
+			goto out;
+		}
+
+		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
+			fprintf(stderr, "ptp_timeout\n");
+			ret = -1;
+			goto out;
+		}
+
+		sched_yield();
+	}
+
+out:
 	return ret;
 }
 
 int network_cb_run(aoip_ctx_t *ctx)
 {
-	struct aoip_operations *ops = ctx->ops;
-
 	int ret = 0;
 
 	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
-	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK && ops->nt_recv) {
-		ret = network_recv_loop(ctx);
-		if (ret < 0) {
+	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK) {
+		if (network_recv_loop(ctx) < 0) {
 		    ret = -1;
-		    goto out;
 		}
-	} else if (ctx->aoip_mode == AOIP_MODE_RECORD && ops->nt_send) {
-		ret = network_send_loop(ctx);
-		if (ret < 0) {
+	} else if (ctx->aoip_mode == AOIP_MODE_RECORD) {
+		if (network_send_loop(ctx) < 0) {
 		    ret = -1;
-		    goto out;
 		}
 	} else {
 		fprintf(stderr, "network_cb_run: unknown ops->mode: %d\n", ctx->aoip_mode);
 		ret = -1;
-		goto out;
 	}
 
-out:
 	return ret;
 }
 
@@ -280,8 +314,7 @@ static int audio_playback_loop(aoip_ctx_t *ctx)
 	int ret = 0;
 
 	while (!ctx->audio_stop_flag) {
-		ret = ctx->ops->ao_write(ctx);
-		if (ret < 0) {
+		if ((ret = ctx->ops->ao_write(ctx)) < 0) {
 			fprintf(stderr, "ops->ao_write: failed");
 			ret = -1;
 			break;
@@ -299,8 +332,7 @@ int audio_cb_run(aoip_ctx_t *ctx)
 
 	struct aoip_operations *ops = ctx->ops;
 
-	ret = ops->ao_open(ctx);
-	if (ret < 0) {
+	if ((ret = ops->ao_open(ctx)) < 0) {
 		fprintf(stderr, "ops->ao_open: failed\n");
 		ret = -1;
 		goto out;
@@ -309,25 +341,22 @@ int audio_cb_run(aoip_ctx_t *ctx)
 	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
 	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_read) {
-		ret = audio_record_loop(ctx);
-		if (ret < 0) {
+		if ((ret = audio_record_loop(ctx)) < 0) {
 		    ret = -1;
 		    goto out;
 		}
 	} else if (ctx->aoip_mode == AOIP_MODE_RECORD && ops->ao_write) {
-		ret = audio_playback_loop(ctx);
-		if (ret < 0) {
+		if ((ret = audio_playback_loop(ctx)) < 0) {
 		    ret = -1;
 		    goto out;
 		}
 	} else {
-		fprintf(stderr, "audio_cb_run: unknown ops->mode: %d\n", ctx->aoip_mode);
+		fprintf(stderr, "audio_cb_run: unknown ctx->aoip_mode: %d\n", ctx->aoip_mode);
 		ret = -1;
 		goto out;
 	}
 
-	ret = ops->ao_close(ctx);
-	if (ret < 0) {
+	if ((ret = ops->ao_close(ctx)) < 0) {
 		fprintf(stderr, "ops->ao_close: failed\n");
 		ret = -1;
 		goto out;

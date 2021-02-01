@@ -153,7 +153,7 @@ void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
 	msg->hdr.msglen = htons(sizeof(ptp_delay_req_t));
 }
 
-static int recv_ptp_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+int ptpc_recv_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
 	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
 
@@ -171,37 +171,6 @@ static int recv_ptp_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 				ret = 1;
 			}
 		}
-	}
-
-	return ret;
-}
-
-int ptpc_announce_msg_loop(ptpc_ctx_t *ctx)
-{
-	ptpc_sync_ctx_t sync = {0};
-
-	int ret = 0;
-
-	ns_gettime(&sync.now);
-	sync.timeout_timer = sync.now;
-
-//	while(!caught_signal) {
-	while(1) {
-		ns_gettime(&sync.now);
-
-		if (recv_ptp_announce_msg(ctx, &sync)) {
-			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
-				   htobe64(ctx->ptp_server_id));
-			break;
-		}
-
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_ANNOUNCE_TIMER) {
-			fprintf(stderr, "ptp_timeout\n");
-			ret = -1;
-			break;
-		}
-
-		sched_yield();
 	}
 
 	return ret;

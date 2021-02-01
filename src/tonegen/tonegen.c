@@ -5,17 +5,45 @@
 
 #include <aoip.h>
 
-int tonegen_ao_init(aoip_ctx_t *);
-int tonegen_ao_release(aoip_ctx_t *);
-int tonegen_ao_open(aoip_ctx_t *);
-int tonegen_ao_close(aoip_ctx_t *);
-int tonegen_ao_read(aoip_ctx_t *);
-int tonegen_ao_write(aoip_ctx_t *);
+int tonegen_ao_init(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+	return ret;
+}
+int tonegen_ao_release(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+	return ret;
+}
+int tonegen_ao_open(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+	return ret;
+}
+int tonegen_ao_close(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+	return ret;
+}
+int tonegen_ao_write(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+	return ret;
+}
+
+static struct aoip_operations tonegen_ops = {
+		.ao_init = tonegen_ao_init,
+		.ao_release = tonegen_ao_release,
+		.ao_open = tonegen_ao_open,
+		.ao_close = tonegen_ao_close,
+		.ao_read = NULL,
+		.ao_write = tonegen_ao_write,
+};
 
 volatile sig_atomic_t caught_signal;
 
 static aoip_config_t tonegen_config = {
-		.aoip_mode = AOIP_MODE_PLAYBACK,
+		.aoip_mode = AOIP_MODE_RECORD,
 
 		.audio_format = AUDIO_FORMAT_L24,
 		.audio_sampling_rate = 48,
@@ -32,14 +60,6 @@ static aoip_config_t tonegen_config = {
 		.rtp.rtp_mode = RTP_MODE_SEND,
 };
 
-static struct aoip_operations tonegen_ops = {
-		.ao_init = tonegen_ao_init,
-		.ao_release = tonegen_ao_release,
-		.ao_open = tonegen_ao_open,
-		.ao_close = tonegen_ao_close,
-		.ao_read = tonegen_ao_read,
-		.ao_write = tonegen_ao_write,
-};
 
 void sig_handler(int sig) {
 	caught_signal = sig;
@@ -74,46 +94,6 @@ void *ntth_body(void *arg)
 	return NULL;
 }
 
-int ptp_sync_loop(ptpc_ctx_t *ctx)
-{
-	ptpc_sync_ctx_t sync = {0};
-	sync.state = S_INIT;
-
-	int ret = 0;
-
-	// get current time
-	ns_gettime(&sync.now);
-	// set the initial timeout timer
-	sync.timeout_timer = sync.now;
-
-	while(!caught_signal) {
-		ns_gettime(&sync.now);
-
-		// receive PTP event packets
-		if (ptpc_recv_sync_msg(ctx, &sync) < 0) {
-			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
-			ret = -1;
-			break;
-		}
-
-		// receive PTP general packets
-		if (ptpc_recv_general_packet(ctx, &sync) < 0) {
-			fprintf(stderr, "recv_ptp_general_packet: failed\n");
-			ret = -1;
-			break;
-		}
-
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
-			fprintf(stderr, "ptp_timeout\n");
-			ret = -1;
-			break;
-		}
-
-		sched_yield();
-	}
-
-	return ret;
-}
 
 int
 main(void)
@@ -134,6 +114,8 @@ main(void)
 	ctx.ops = &tonegen_ops;
 	ctx.txbuf = txbuf;
 	ctx.rxbuf = rxbuf;
+	ctx.ptpc.txbuf = txbuf;
+	ctx.ptpc.rxbuf = txbuf;
 
 	if (aoip_create_context(&ctx, &tonegen_config) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
@@ -149,11 +131,6 @@ main(void)
 
 	if (pthread_create(&aoth, NULL, aoth_body, &ctx)) {
 		perror("audio pthread create");
-		return 1;
-	}
-
-	if (ptpc_announce_msg_loop(&ctx.ptpc) < 0) {
-		fprintf(stderr, "ptp_wait_announce_message: failed\n");
 		return 1;
 	}
 
