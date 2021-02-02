@@ -31,12 +31,11 @@ err:
 	return ret;
 }
 
-static int audio_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
+static int audio_init(aoip_ctx_t *ctx, aoip_config_t *config)
 {
 	int ret;
 
-	ret = ctx->ops->ao_init(ctx);
-	if (ret < 0) {
+	if ((ret = ctx->ops->ao_init(ctx)) < 0) {
 		fprintf(stderr, "ops->ao_init: failed\n");
 		ret = -1;
 		goto out;
@@ -57,9 +56,9 @@ audio_device_release(aoip_ctx_t *ctx)
 }
 
 
-static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
+static int network_init(aoip_ctx_t *ctx, aoip_config_t *config)
 {
-	int ret;
+	int ret = 0;
 
 	// local_addr
 	inet_pton(AF_INET, (const char *)config->local_addr, &ctx->local_addr);
@@ -67,31 +66,36 @@ static int network_device_init(aoip_ctx_t *ctx, aoip_config_t *config)
 	// txbuf
 	if (ctx->txbuf == NULL) {
 		fprintf(stderr, "txbuf isn't allocated\n");
-		return 1;
+		ret = -1;
+		goto out;
 	}
 
 	// rxbuf
 	if (ctx->txbuf == NULL) {
 		fprintf(stderr, "rxbuf isn't allocated\n");
-		return 1;
+		ret = -1;
+		goto out;
 	}
 
 	// PTP
 	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, ctx->local_addr) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
-		return 1;
+		ret = -1;
+		goto out;
 	}
 
 	// SAP
 	if (sap_create_context(&ctx->sap, ctx->local_addr) < 0) {
 		fprintf(stderr, "sap_create_context: failed\n");
-		return 1;
+		ret = -1;
+		goto out;
 	}
 
 	// RTP
 	if (rtp_create_context(&ctx->rtp, &config->rtp, ctx->local_addr) < 0) {
 		fprintf(stderr, "rtp_create_context: failed\n");
-		return 1;
+		ret = -1;
+		goto out;
 	}
 
 out:
@@ -144,12 +148,12 @@ int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 		goto out;
 	}
 
-	if (audio_device_init(ctx, config) < 0) {
+	if (audio_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
 
-	if (network_device_init(ctx, config) < 0) {
+	if (network_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
