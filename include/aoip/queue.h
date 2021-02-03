@@ -1,7 +1,6 @@
 #pragma once
 
 struct aoip_queue_slot {
-	uint32_t tstamp;   /* time stamp (source: media_clock) */
 	uint16_t len;      /* number of valid data for each slot */
 	uint8_t *data;     /* data point */  
 };

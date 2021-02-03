@@ -24,14 +24,7 @@
 #include "aoip/sap.h"
 #include "aoip/rtp.h"
 
-#define BIT_RATE        3            // 2: 16bit, 3: 24bit
-#define N_CHANNEL       2            // 2: stereo
-#define PACKET_SAMPLES  48           // 48kHz
-#define PACKET_TIME     1000         // 1ms
-
-#define DATA_QUEUE_SLOT_SIZE  (BIT_RATE * N_CHANNEL * PACKET_SAMPLES)
 #define DATA_QUEUE_SLOT_NUM  512
-
 #define AOIP_PACKET_BUF_SIZE 512
 
 /*
@@ -89,6 +82,7 @@ typedef struct {
 	uint8_t audio_format;
 	uint32_t audio_sampling_rate;
 	uint8_t audio_channels;
+	uint16_t audio_packet_time;
 
 	stats_t stats;
 

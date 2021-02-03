@@ -9,7 +9,7 @@ void float_to_l24(float_t f, int32_t buf[]) {
 	} else if (f <= -1.0) {
 		l24.i32 = -2147483648;
 	} else {
-		l24.i32 = floor(f * 2147483648.0);
+		l24.i32 = f * 2147483648.0;
 	}
 	b->u8[3] = l24.u8[1];
 	b->u8[2] = l24.u8[2];

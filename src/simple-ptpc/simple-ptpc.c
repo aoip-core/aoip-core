@@ -115,9 +115,7 @@ main(void)
 
 	ptpc_ctx_t ctx = {0};
 	uint8_t txbuf[PTP_PACKET_BUF_SIZE] = {0};
-	ctx.txbuf = &txbuf[0];
 	uint8_t rxbuf[PTP_PACKET_BUF_SIZE] = {0};
-	ctx.rxbuf = &rxbuf[0];
 
 	if (ptpc_create_context(&ctx, &ptp_config, local_addr, txbuf, rxbuf) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");

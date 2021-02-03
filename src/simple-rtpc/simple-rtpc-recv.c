@@ -10,6 +10,10 @@
 volatile sig_atomic_t caught_signal;
 
 static struct in_addr local_addr = { .s_addr = 0x6801000a }; // 10.0.1.104
+static uint8_t audio_format = 24; // L24
+static uint32_t audio_sampling_rate = 48000;
+static uint8_t audio_channels = 2;
+static uint16_t audio_packet_time = 1000;  // 1ms
 
 static const rtp_config_t rtp_config = {
 		.rtp_mode = RTP_MODE_RECV,
@@ -56,25 +60,18 @@ main(void)
 	}
 
 	rtp_ctx_t ctx = {0};
+	uint8_t txbuf[RTP_PACKET_BUF_SIZE] = {0};
+	uint8_t rxbuf[RTP_PACKET_BUF_SIZE] = {0};
 
-	if ((ctx.txbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
-	if ((ctx.rxbuf = (uint8_t *)calloc(PACKET_BUF_SIZE, sizeof(uint8_t))) == NULL) {
-		perror("calloc");
-		return 1;
-	}
-
-	if (rtp_create_context(&ctx, &rtp_config, local_addr) < 0) {
+	uint16_t rtp_packet_length = RTP_HDR_SIZE +
+					   ((audio_format >> 3) * audio_channels * (audio_sampling_rate / audio_packet_time));
+	if (rtp_create_context(&ctx, &rtp_config, local_addr, rtp_packet_length, audio_packet_time, txbuf, rxbuf) < 0) {
 		fprintf(stderr, "rtp_create_context: failed\n");
 		return 1;
 	}
 
 	rtp_loop(&ctx);
 
-	free(ctx.rxbuf);
-	free(ctx.txbuf);
 	rtp_context_destroy(&ctx);
 
 	return 0;

@@ -50,10 +50,10 @@ static struct aoip_operations tonegen_ops = {
 static aoip_config_t tonegen_config = {
 		.aoip_mode = AOIP_MODE_RECORD,
 
-		.audio_format = AUDIO_FORMAT_L24,
-		.audio_sampling_rate = 48000,
-		.audio_channels = AUDIO_CHANNEL_STEREO,
-		.audio_packet_time = 1,
+		.audio_format = AUDIO_FORMAT_L24,  // 24 bit
+		.audio_sampling_rate = 48000,  // 48 kHz
+		.audio_channels = AUDIO_CHANNEL_STEREO,  // 2ch
+		.audio_packet_time = 1000,  // 1 ms
 
 		.session_name = "aoip-core v0.0.0",
 

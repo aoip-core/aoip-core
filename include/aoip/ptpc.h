@@ -73,7 +73,7 @@ static inline void ptp_sync_state_reset(ptpc_sync_ctx_t *sync)
 
 static inline int64_t calc_ptp_offset(ptpc_sync_ctx_t *sync)
 {
-	return (int64_t)sync->t2 + (int64_t)sync->t4 - (int64_t)sync->t1 - (int64_t)sync->t3 / 2;
+	return ((int64_t)sync->t1 - (int64_t)sync->t2 - (int64_t)sync->t4 + (int64_t)sync->t3) / 2;
 }
 
 int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, struct in_addr, uint8_t *txbuf, uint8_t *rxbuf);

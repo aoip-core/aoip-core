@@ -1,7 +1,5 @@
 #include "myapp.h"
 
-//#define TIMEOUT_PTP_TIMER    (2 * 1000000000UL)
-//#define TIMEOUT_SAP_TIMER    (30 * 1000000000UL)
 int myapp_nt_recv(aoip_ctx_t *ctx)
 {
 	queue_t *queue = &ctx->queue;
@@ -22,12 +20,11 @@ int myapp_nt_recv(aoip_ctx_t *ctx)
 
 	// receive RTP packets
 	queue_slot_t *slot = queue_write_ptr(queue);
-	count = recv(ctx->rtp.rtp_fd, slot->data,
-			(RTP_HDR_SIZE + DATA_QUEUE_SLOT_SIZE), 0);
+	count = recv(ctx->rtp.rtp_fd, slot->data, ctx->rtp.rtp_packet_length, 0);
 	if (count > 0) {
 		if (!queue_full(queue)) {
-			struct rtp_hdr *rtp = (struct rtp_hdr *)&slot->data[0];
-			slot->tstamp = ntohl(rtp->timestamp);
+			//struct rtp_hdr *rtp = (struct rtp_hdr *)&slot->data[0];
+			//slot->tstamp = ntohl(rtp->timestamp);
 			slot->len = count;
 			queue_write_next(queue);
 		} else {

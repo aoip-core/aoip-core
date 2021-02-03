@@ -6,12 +6,13 @@
 #include <netinet/in.h>
 
 #include <aoip/socket.h>
+#include <aoip/timer.h>
 
 #define RTP_MULTICAST_GROUP    "239.69.179.201"
 #define RTP_PORT               5004
 #define RTP_HDR_SIZE    12
 
-#define PACKET_BUF_SIZE 512
+#define RTP_PACKET_BUF_SIZE 512
 
 struct rtp_hdr {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -64,12 +65,18 @@ typedef struct {
 
 	int rtp_fd;
 
-	uint8_t *txbuf;
+	ns_t rtp_send_interval;
 
+	uint8_t *txbuf;
 	uint8_t *rxbuf;
 } rtp_ctx_t;
 
-int rtp_create_context(rtp_ctx_t *, const rtp_config_t *, struct in_addr);
+static inline uint32_t ns_to_rtp_tstamp(ns_t ns, uint16_t rtp_samples)
+{
+	return (uint32_t)((ns / 1000000) * rtp_samples);
+}
+
+int rtp_create_context(rtp_ctx_t *, const rtp_config_t *, struct in_addr, uint16_t, uint16_t, uint8_t *, uint8_t *);
 void rtp_context_destroy(rtp_ctx_t *);
 int recv_rtp_packet(rtp_ctx_t *);
 void build_rtp_packet(rtp_ctx_t *, struct rtp_hdr *);

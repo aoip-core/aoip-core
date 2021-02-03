@@ -1,26 +1,24 @@
 #include <aoip.h>
 
-static int aoip_queue_init(struct aoip_queue *q)
+static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 {
-	int i, ret = 0;
+	int ret = 0;
 
-	q->head = 0;
-	q->tail = 0;
-	q->mask = DATA_QUEUE_SLOT_NUM - 1;
+	queue->head = 0;
+	queue->tail = 0;
+	queue->mask = DATA_QUEUE_SLOT_NUM - 1;  // TODO: temporary hard code
 
 	/* queue_slot */
-	q->slot = (queue_slot_t *)malloc(sizeof(queue_slot_t) * DATA_QUEUE_SLOT_NUM);
-	if (q->slot == NULL) {
+	if ((queue->slot = (queue_slot_t *)malloc(sizeof(queue_slot_t) * DATA_QUEUE_SLOT_NUM)) == NULL) {
 		perror("malloc q->slot");
 		ret = -1;
 		goto err;
 	}
 
-	for (i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
-		q->slot[i].tstamp = 0;
-		q->slot[i].len = 0;
-		q->slot[i].data = (uint8_t *)calloc(RTP_HDR_SIZE + DATA_QUEUE_SLOT_SIZE, sizeof(uint8_t));
-		if (q->slot[i].data == NULL) {
+	for (uint16_t i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
+		queue->slot[i].len = 0;
+		queue->slot[i].data = (uint8_t *)calloc(ctx->rtp.rtp_packet_length, sizeof(uint8_t));
+		if (queue->slot[i].data == NULL) {
 			perror("malloc q->slot[i].data");
 			ret = -1;
 			goto err;
@@ -31,17 +29,15 @@ err:
 	return ret;
 }
 
-static int audio_init(aoip_ctx_t *ctx, aoip_config_t *config)
+static int audio_init(aoip_ctx_t *ctx)
 {
 	int ret;
 
 	if ((ret = ctx->ops->ao_init(ctx)) < 0) {
 		fprintf(stderr, "ops->ao_init: failed\n");
 		ret = -1;
-		goto out;
 	}
 
-out:
 	return ret;
 }
 
@@ -74,6 +70,9 @@ static int network_init(aoip_ctx_t *ctx, aoip_config_t *config)
 
 	// audio_channels
 	ctx->audio_channels = config->audio_channels;
+
+	// audio_packet_time
+	ctx->audio_packet_time = config->audio_packet_time;
 
 	// aoip_operations
 	ctx->ops = config->ops;
@@ -112,7 +111,10 @@ static int network_init(aoip_ctx_t *ctx, aoip_config_t *config)
 	}
 
 	// RTP
-	if (rtp_create_context(&ctx->rtp, &config->rtp, ctx->local_addr) < 0) {
+	uint16_t rtp_packet_length = RTP_HDR_SIZE +
+					   ((ctx->audio_format >> 3) * ctx->audio_channels * (ctx->audio_sampling_rate / ctx->audio_packet_time));
+	if (rtp_create_context(&ctx->rtp, &config->rtp, ctx->local_addr, rtp_packet_length,
+						   ctx->audio_packet_time, ctx->txbuf, ctx->rxbuf) < 0) {
 		fprintf(stderr, "rtp_create_context: failed\n");
 		ret = -1;
 		goto out;
@@ -162,7 +164,7 @@ int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 	// ctx->aoip_mode
 	ctx->aoip_mode = config->aoip_mode;
 
-	if (aoip_queue_init(&ctx->queue) < 0) {
+	if (aoip_queue_init(ctx, &ctx->queue) < 0) {
 		ret = -1;
 		goto out;
 	}
@@ -172,7 +174,7 @@ int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 		goto out;
 	}
 
-	if (audio_init(ctx, config) < 0) {
+	if (audio_init(ctx) < 0) {
 		ret = -1;
 		goto out;
 	}
@@ -210,31 +212,19 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 	//	ret = -1;
 	//}
 
-	while (!ctx->network_stop_flag) {
-		ret = ctx->ops->nt_recv(ctx);
-		if (ret < 0) {
-			fprintf(stderr, "ops->nt_recv: failed\n");
-			ret = -1;
-			break;
-		}
-
-		sched_yield();
-	}
 
 	return ret;
 }
 
-static int network_send_loop(aoip_ctx_t *ctx)
+static int
+ptpc_announce_msg_loop(aoip_ctx_t *ctx)
 {
 	ptpc_sync_ctx_t sync = {0};
-	sync.state = S_INIT;
-
 	int ret = 0;
 
-	// wait a PTPv2 announce message
 	ns_gettime(&sync.now);
 	sync.timeout_timer = sync.now;
-	sync.sap_timeout_timer = sync.now;
+
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
@@ -247,30 +237,25 @@ static int network_send_loop(aoip_ctx_t *ctx)
 		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_ANNOUNCE_TIMER) {
 			fprintf(stderr, "ptp_timeout\n");
 			ret = -1;
-			goto out;
+			break;
 		}
 
 		sched_yield();
 	}
 
-	// send a SDP message
-	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr,
-					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
-					  ctx->ptpc.ptp_server_id) < 0) {
-		fprintf(stderr, "build_sap_msg: failed\n");
-		ret = -1;
-		goto out;
-	}
-	if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
-			   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
-		perror("sendto(sap_fd)");
-		ret = -1;
-		goto out;
-	}
+	return ret;
+}
 
-	// main loop
+static int
+ptpc_sync_loop(aoip_ctx_t *ctx) {
+	ptpc_sync_ctx_t sync = {0};
+	sync.state = S_INIT;
+
+	int ret = 0;
+
 	ns_gettime(&sync.now);
 	sync.timeout_timer = sync.now;
+
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
@@ -288,22 +273,92 @@ static int network_send_loop(aoip_ctx_t *ctx)
 			break;
 		}
 
+		// PTP timeout
 		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
 			fprintf(stderr, "ptp_timeout\n");
 			ret = -1;
 			break;
 		}
 
-		if (ns_sub(sync.now, sync.sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			printf("%"PRIu64": send sap_msg\n", sync.now);
+		sched_yield();
+	}
+
+	return ret;
+}
+
+#define AOIP_PTP_SYNC_TIMER (5 * NS_SEC)
+
+static int
+network_send_loop(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+
+	// wait a PTPv2 announce message
+	if (ptpc_announce_msg_loop(ctx) < 0) {
+		ret = -1;
+		goto out;
+	}
+
+	// PTPv2 sync
+	if (ptpc_sync_loop(ctx) < 0) {
+		ret = -1;
+		goto out;
+	}
+
+	// send a SDP message
+	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr,
+					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
+					  ctx->ptpc.ptp_server_id) < 0) {
+		fprintf(stderr, "build_sap_msg: failed\n");
+		ret = -1;
+		goto out;
+	}
+	if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
+			   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+		perror("sendto(sap_fd)");
+		ret = -1;
+		goto out;
+	}
+
+	ns_t now;
+	ns_gettime(&now);
+	ns_t ptp_sync_timer = now;
+	ns_t sap_timeout_timer = now;
+
+	// main loop
+	while (!ctx->network_stop_flag) {
+		// PTP sync
+		if (ns_sub(now, ptp_sync_timer) >= AOIP_PTP_SYNC_TIMER) {
+			if (ptpc_sync_loop(ctx) < 0) {
+				ret = -1;
+				break;
+			}
+			ptp_sync_timer = now;
+		}
+
+		// RTP send
+		queue_t *queue = &ctx->queue;
+		if (!queue_empty(queue)) {
+			 const queue_slot_t *slot = queue_read_ptr(queue);
+			 if (sendto(ctx->rtp.rtp_fd, slot->data, slot->len, 0,
+						(struct sockaddr *)&ctx->rtp.mcast_addr, sizeof(ctx->rtp.mcast_addr)) < 0) {
+				 perror("sendto(rtp_fd)");
+				 ret = -1;
+				 break;
+			 }
+			 queue_read_next(queue);
+		 }
+
+		// send SAP message
+		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
+			printf("%"PRIu64": send sap_msg\n", now);
 			if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
 					   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
 				perror("sendto(sap_fd)");
 				ret = -1;
 				break;
 			}
-			printf("%s\n",ctx->sap.sap_msg.data.sdp);
-			sync.sap_timeout_timer = sync.now;
+			sap_timeout_timer = now;
 		}
 
 		sched_yield();
