@@ -8,26 +8,31 @@
 int tonegen_ao_init(aoip_ctx_t *ctx)
 {
 	int ret = 0;
+	printf("%s\n", __func__);
 	return ret;
 }
 int tonegen_ao_release(aoip_ctx_t *ctx)
 {
 	int ret = 0;
+	printf("%s\n", __func__);
 	return ret;
 }
 int tonegen_ao_open(aoip_ctx_t *ctx)
 {
 	int ret = 0;
+	printf("%s\n", __func__);
 	return ret;
 }
 int tonegen_ao_close(aoip_ctx_t *ctx)
 {
 	int ret = 0;
+	printf("%s\n", __func__);
 	return ret;
 }
 int tonegen_ao_write(aoip_ctx_t *ctx)
 {
 	int ret = 0;
+	//printf("%s\n", __func__);
 	return ret;
 }
 
@@ -117,9 +122,6 @@ main(void)
 	uint8_t rxbuf[AOIP_PACKET_BUF_SIZE] = {0};
 	tonegen_config.txbuf = txbuf;
 	tonegen_config.rxbuf = rxbuf;
-
-	printf("rxbuf=%p\n", rxbuf);
-	printf("&rxbuf=%p\n", &rxbuf);
 
 	if (aoip_create_context(&ctx, &tonegen_config) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");

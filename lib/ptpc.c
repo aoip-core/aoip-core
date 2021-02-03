@@ -107,11 +107,18 @@ out:
 
 void ptpc_context_destroy(ptpc_ctx_t *ctx)
 {
+	if (aoip_drop_mcast_membership(ctx->general_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_membership: failed\n");
+	}
+	close(ctx->general_fd);
+	ctx->general_fd = -1;
+
+	if (aoip_drop_mcast_membership(ctx->event_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_membership: failed\n");
+	}
 	close(ctx->event_fd);
 	ctx->event_fd = -1;
 
-	close(ctx->general_fd);
-	ctx->general_fd = -1;
 }
 
 void print_ptp_header(ptp_msg_t *ptp)
@@ -236,6 +243,7 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 			//	   sync->state, msg->hdr.msgtype, htons(msg->hdr.seqid), htons(sync->seqid));
 			if (msg->hdr.seqid > sync->seqid) {
 				ptp_sync_state_reset(sync);
+				sync->timeout_timer = sync->now;
 				goto out;
 			}
 
@@ -256,7 +264,7 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 				// offset
 				ctx->ptp_offset = calc_ptp_offset(sync);
 
-				printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+				//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
 				ptp_sync_state_reset(sync);
 				sync->timeout_timer = sync->now;
 			}

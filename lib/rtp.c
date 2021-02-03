@@ -20,6 +20,12 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 		goto out;
 	}
 
+	if (aoip_mcast_interface(ctx->rtp_fd, ctx->local_addr) < 0) {
+		fprintf(stderr, "aoip_mcast_interface: failed\n");
+		ret = -1;
+		goto out;
+	}
+
 	if (config->rtp_mode == RTP_MODE_RECV) {
 		if (aoip_bind(ctx->rtp_fd, RTP_PORT) < 0) {
 			fprintf(stderr, "aoip_bind: failed\n");
@@ -29,18 +35,6 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 
 		if (aoip_mcast_membership(ctx->rtp_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
 			fprintf(stderr, "aoip_mcast_membership: failed\n");
-			ret = -1;
-			goto out;
-		}
-
-		if (aoip_mcast_interface(ctx->rtp_fd, ctx->local_addr) < 0) {
-			fprintf(stderr, "aoip_mcast_interface: failed\n");
-			ret = -1;
-			goto out;
-		}
-	} else if (config->rtp_mode == RTP_MODE_SEND) {
-		if (aoip_mcast_interface(ctx->rtp_fd, ctx->local_addr) < 0) {
-			fprintf(stderr, "aoip_mcast_interface: failed\n");
 			ret = -1;
 			goto out;
 		}

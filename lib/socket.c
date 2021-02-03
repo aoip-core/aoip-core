@@ -89,3 +89,21 @@ aoip_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_ad
 	return ret;
 }
 
+int
+aoip_drop_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mcast_addr)
+{
+	int ret = 0;
+
+	// Multicast membership
+	// idf_edp (lwip) doesn't support ip_mreqn
+	struct ip_mreq req = {0};
+	req.imr_interface = local_addr;
+	req.imr_multiaddr = mcast_addr;
+	if (setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &req, sizeof(req)) < 0) {
+		perror("setsockopt(IP_ADD_MEMBERSHIP)");
+		ret = -1;
+	}
+
+	return ret;
+}
+

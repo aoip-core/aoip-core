@@ -302,6 +302,7 @@ static int network_send_loop(aoip_ctx_t *ctx)
 				ret = -1;
 				break;
 			}
+			printf("%s\n",ctx->sap.sap_msg.data.sdp);
 			sync.sap_timeout_timer = sync.now;
 		}
 
