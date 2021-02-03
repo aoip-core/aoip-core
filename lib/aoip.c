@@ -347,14 +347,13 @@ static int audio_record_loop(aoip_ctx_t *ctx)
 	while (!ctx->audio_stop_flag) {
 		printf("audio_record_loop()\n");
 
-		ret = ctx->ops->ao_read(ctx);
-		if (ret < 0) {
+		if ((ret = ctx->ops->ao_read(ctx)) < 0) {
 			perror("ops->ao_read");
 			ret = -1;
 			break;
 		}
 
-		sleep(1);
+		sched_yield();
 	}
 
 	return ret;
