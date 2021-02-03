@@ -7,6 +7,9 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 
 	memset(ctx, 0, sizeof(*ctx));
 
+	// rtp_mode
+	ctx->rtp_mode = config->rtp_mode;
+
 	// local_addr
 	ctx->local_addr = local_addr;
 
@@ -26,7 +29,7 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 		goto out;
 	}
 
-	if (config->rtp_mode == RTP_MODE_RECV) {
+	if (ctx->rtp_mode == RTP_MODE_RECV) {
 		if (aoip_bind(ctx->rtp_fd, RTP_PORT) < 0) {
 			fprintf(stderr, "aoip_bind: failed\n");
 			ret = -1;
@@ -47,6 +50,12 @@ out:
 void
 rtp_context_destroy(rtp_ctx_t *ctx)
 {
+	if (ctx->rtp_mode == RTP_MODE_RECV) {
+		if (aoip_drop_mcast_membership(ctx->rtp_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+			fprintf(stderr, "aoip_drop_mcast_membership: failed\n");
+		}
+	}
+
 	close(ctx->rtp_fd);
 	ctx->rtp_fd = -1;
 }

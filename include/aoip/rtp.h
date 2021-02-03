@@ -54,6 +54,8 @@ typedef struct {
 } rtp_config_t;
 
 typedef struct {
+	rtp_mode_t rtp_mode;
+
 	struct in_addr local_addr;
 
 	struct in_addr mcast_addr;
