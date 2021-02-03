@@ -83,7 +83,7 @@ int ptpc_announce_msg_loop(ptpc_ctx_t *ctx)
 	while(!caught_signal) {
 		ns_gettime(&sync.now);
 
-		if (ptpc_recv_announce_msg(ctx, &sync)) {
+		if (ptpc_recv_announce_msg(ctx)) {
 			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
 				   htobe64(ctx->ptp_server_id));
 			break;
@@ -114,12 +114,12 @@ main(void)
 	}
 
 	ptpc_ctx_t ctx = {0};
-	uint8_t txbuf[PACKET_BUF_SIZE] = {0};
-	ctx.txbuf = txbuf;
-	uint8_t rxbuf[PACKET_BUF_SIZE] = {0};
-	ctx.rxbuf = rxbuf;
+	uint8_t txbuf[PTP_PACKET_BUF_SIZE] = {0};
+	ctx.txbuf = &txbuf[0];
+	uint8_t rxbuf[PTP_PACKET_BUF_SIZE] = {0};
+	ctx.rxbuf = &rxbuf[0];
 
-	if (ptpc_create_context(&ctx, &ptp_config, local_addr) < 0) {
+	if (ptpc_create_context(&ctx, &ptp_config, local_addr, txbuf, rxbuf) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		return 1;
 	}

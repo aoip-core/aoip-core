@@ -8,7 +8,7 @@
 #include "aoip/ptp.h"
 #include "socket.h"
 
-#define PACKET_BUF_SIZE 256
+#define PTP_PACKET_BUF_SIZE 256
 
 typedef enum {
 	PTP_MODE_NONE = 0,
@@ -54,6 +54,7 @@ typedef struct {
 	ns_t now;
 	ns_t recv_ts;
 	ns_t timeout_timer;
+	ns_t sap_timeout_timer;
 
 	ns_t t1;
 	ns_t t2;
@@ -75,12 +76,12 @@ static inline int64_t calc_ptp_offset(ptpc_sync_ctx_t *sync)
 	return (int64_t)sync->t2 + (int64_t)sync->t4 - (int64_t)sync->t1 - (int64_t)sync->t3 / 2;
 }
 
-int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, struct in_addr);
+int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, struct in_addr, uint8_t *txbuf, uint8_t *rxbuf);
 void ptpc_context_destroy(ptpc_ctx_t *);
 void print_ptp_header(ptp_msg_t *);
 void build_ptp_delay_req_msg(ptpc_sync_ctx_t *, ptp_delay_req_t *);
 
 int ptpc_recv_sync_msg(ptpc_ctx_t *, ptpc_sync_ctx_t *);
 int ptpc_recv_general_packet(ptpc_ctx_t *, ptpc_sync_ctx_t *);
-int ptpc_recv_announce_msg(ptpc_ctx_t *, ptpc_sync_ctx_t *);
+int ptpc_recv_announce_msg(ptpc_ctx_t *);
 

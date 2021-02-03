@@ -63,6 +63,10 @@ typedef struct {
 
 	ptpc_config_t ptpc;
 	rtp_config_t rtp;
+
+	uint8_t *txbuf;
+	uint8_t *rxbuf;
+	struct aoip_operations *ops;
 } aoip_config_t;
 
 typedef struct aoip_stats {
@@ -78,13 +82,17 @@ struct aoip_operations;
 
 typedef struct {
 	uint8_t aoip_mode;
+
 	struct in_addr local_addr;
+	uint8_t *sess_name;
+
+	uint8_t audio_format;
+	uint32_t audio_sampling_rate;
+	uint8_t audio_channels;
 
 	stats_t stats;
 
 	queue_t queue;
-	uint8_t *txbuf;
-	uint8_t *rxbuf;
 
 	audio_t audio;
 
@@ -95,6 +103,8 @@ typedef struct {
 	int audio_stop_flag;
 	int network_stop_flag;
 
+	uint8_t *txbuf;
+	uint8_t *rxbuf;
 	struct aoip_operations *ops;
 } aoip_ctx_t;
 

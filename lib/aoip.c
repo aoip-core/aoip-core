@@ -63,22 +63,42 @@ static int network_init(aoip_ctx_t *ctx, aoip_config_t *config)
 	// local_addr
 	inet_pton(AF_INET, (const char *)config->local_addr, &ctx->local_addr);
 
+	// session_name
+	ctx->sess_name = config->session_name;
+
+	// audio_format
+	ctx->audio_format = config->audio_format;
+
+	// audio_sampling_rate
+	ctx->audio_sampling_rate = config->audio_sampling_rate;
+
+	// audio_channels
+	ctx->audio_channels = config->audio_channels;
+
+	// aoip_operations
+	ctx->ops = config->ops;
+
 	// txbuf
-	if (ctx->txbuf == NULL) {
+	if (config->txbuf == NULL) {
 		fprintf(stderr, "txbuf isn't allocated\n");
 		ret = -1;
 		goto out;
+	} else {
+		ctx->txbuf = config->txbuf;
 	}
 
 	// rxbuf
-	if (ctx->txbuf == NULL) {
+	if (config->txbuf == NULL) {
 		fprintf(stderr, "rxbuf isn't allocated\n");
 		ret = -1;
 		goto out;
+	} else {
+		ctx->rxbuf = config->rxbuf;
 	}
 
 	// PTP
-	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, ctx->local_addr) < 0) {
+	if (ptpc_create_context(&ctx->ptpc, &config->ptpc, ctx->local_addr,
+						 ctx->txbuf, ctx->rxbuf) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		ret = -1;
 		goto out;
@@ -114,8 +134,7 @@ static void aoip_core_close(aoip_ctx_t *ctx)
 {
 	stats_t *stats = (stats_t *)&ctx->stats;
 
-	int i;
-	for (i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
+	for (int i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
 		free(ctx->queue.slot[i].data);
 		ctx->queue.slot[i].data = NULL;
 	}
@@ -148,12 +167,12 @@ int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 		goto out;
 	}
 
-	if (audio_init(ctx, config) < 0) {
+	if (network_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
 
-	if (network_init(ctx, config) < 0) {
+	if (audio_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
@@ -207,21 +226,21 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 
 static int network_send_loop(aoip_ctx_t *ctx)
 {
-	ptpc_ctx_t *ptp_ctx = &ctx->ptpc;
-
 	ptpc_sync_ctx_t sync = {0};
 	sync.state = S_INIT;
 
 	int ret = 0;
 
+	// wait a PTPv2 announce message
 	ns_gettime(&sync.now);
 	sync.timeout_timer = sync.now;
+	sync.sap_timeout_timer = sync.now;
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
-		if (ptpc_recv_announce_msg(ptp_ctx, &sync)) {
+		if (ptpc_recv_announce_msg(&ctx->ptpc)) {
 			printf("Detected a PTPv2 Announce message. ptp_server_id=%"PRIx64"\n",
-				   htobe64(ptp_ctx->ptp_server_id));
+				   htobe64(ctx->ptpc.ptp_server_id));
 			break;
 		}
 
@@ -234,29 +253,56 @@ static int network_send_loop(aoip_ctx_t *ctx)
 		sched_yield();
 	}
 
+	// send a SDP message
+	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr,
+					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
+					  ctx->ptpc.ptp_server_id) < 0) {
+		fprintf(stderr, "build_sap_msg: failed\n");
+		ret = -1;
+		goto out;
+	}
+	if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
+			   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+		perror("sendto(sap_fd)");
+		ret = -1;
+		goto out;
+	}
+
+	// main loop
 	ns_gettime(&sync.now);
 	sync.timeout_timer = sync.now;
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
 		// receive PTP event packets
-		if (ptpc_recv_sync_msg(ptp_ctx, &sync) < 0) {
+		if (ptpc_recv_sync_msg(&ctx->ptpc, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
 			ret = -1;
-			goto out;
+			break;
 		}
 
 		// receive PTP general packets
-		if (ptpc_recv_general_packet(ptp_ctx, &sync) < 0) {
+		if (ptpc_recv_general_packet(&ctx->ptpc, &sync) < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
 			ret = -1;
-			goto out;
+			break;
 		}
 
 		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
 			fprintf(stderr, "ptp_timeout\n");
 			ret = -1;
-			goto out;
+			break;
+		}
+
+		if (ns_sub(sync.now, sync.sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
+			printf("%"PRIu64": send sap_msg\n", sync.now);
+			if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
+					   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+				perror("sendto(sap_fd)");
+				ret = -1;
+				break;
+			}
+			sync.sap_timeout_timer = sync.now;
 		}
 
 		sched_yield();

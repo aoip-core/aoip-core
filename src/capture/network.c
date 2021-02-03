@@ -1,7 +1,7 @@
 #include "myapp.h"
 
-#define TIMEOUT_PTP_TIMER    (2 * 1000000000UL)
-#define TIMEOUT_SAP_TIMER    (30 * 1000000000UL)
+//#define TIMEOUT_PTP_TIMER    (2 * 1000000000UL)
+//#define TIMEOUT_SAP_TIMER    (30 * 1000000000UL)
 int myapp_nt_recv(aoip_ctx_t *ctx)
 {
 	queue_t *queue = &ctx->queue;

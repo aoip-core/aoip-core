@@ -31,6 +31,8 @@ int tonegen_ao_write(aoip_ctx_t *ctx)
 	return ret;
 }
 
+volatile sig_atomic_t caught_signal;
+
 static struct aoip_operations tonegen_ops = {
 		.ao_init = tonegen_ao_init,
 		.ao_release = tonegen_ao_release,
@@ -40,13 +42,11 @@ static struct aoip_operations tonegen_ops = {
 		.ao_write = tonegen_ao_write,
 };
 
-volatile sig_atomic_t caught_signal;
-
 static aoip_config_t tonegen_config = {
 		.aoip_mode = AOIP_MODE_RECORD,
 
 		.audio_format = AUDIO_FORMAT_L24,
-		.audio_sampling_rate = 48,
+		.audio_sampling_rate = 48000,
 		.audio_channels = AUDIO_CHANNEL_STEREO,
 		.audio_packet_time = 1,
 
@@ -58,6 +58,11 @@ static aoip_config_t tonegen_config = {
 		.ptpc.ptp_domain = 0,
 
 		.rtp.rtp_mode = RTP_MODE_SEND,
+
+		.txbuf = NULL,
+		.rxbuf = NULL,
+
+		.ops = &tonegen_ops,
 };
 
 
@@ -110,12 +115,11 @@ main(void)
 	aoip_ctx_t ctx = {0};
 	uint8_t txbuf[AOIP_PACKET_BUF_SIZE] = {0};
 	uint8_t rxbuf[AOIP_PACKET_BUF_SIZE] = {0};
+	tonegen_config.txbuf = txbuf;
+	tonegen_config.rxbuf = rxbuf;
 
-	ctx.ops = &tonegen_ops;
-	ctx.txbuf = txbuf;
-	ctx.rxbuf = rxbuf;
-	ctx.ptpc.txbuf = txbuf;
-	ctx.ptpc.rxbuf = txbuf;
+	printf("rxbuf=%p\n", rxbuf);
+	printf("&rxbuf=%p\n", &rxbuf);
 
 	if (aoip_create_context(&ctx, &tonegen_config) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");

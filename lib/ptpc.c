@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <sched.h>
 
-int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, struct in_addr local_addr)
+int
+ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config,
+						struct in_addr local_addr, uint8_t *txbuf, uint8_t *rxbuf)
 {
 	int ret = 0;
 
@@ -27,6 +28,23 @@ int ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config, struct in_
 		fprintf(stderr, "can't set ctx->mcast_addr\n");
 		ret = -1;
 		goto out;
+	}
+
+	// txbuf
+	if (txbuf == NULL) {
+		fprintf(stderr, "txbuf isn't allocated\n");
+		ret = -1;
+		goto out;
+	} else {
+		ctx->txbuf = txbuf;
+	}
+	// rxbuf
+	if (rxbuf == NULL) {
+		fprintf(stderr, "rxbuf isn't allocated\n");
+		ret = -1;
+		goto out;
+	} else {
+		ctx->rxbuf = rxbuf;
 	}
 
 	// server_addr
@@ -153,17 +171,16 @@ void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
 	msg->hdr.msglen = htons(sizeof(ptp_delay_req_t));
 }
 
-int ptpc_recv_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+int ptpc_recv_announce_msg(ptpc_ctx_t *ctx)
 {
-	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
+	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
 
 	struct sockaddr_in sender = {0};
 	socklen_t slen = sizeof(sender);
 	int ret = 0;
 
-	if (recvfrom(ctx->general_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0,
+	if (recvfrom(ctx->general_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0,
 			  (struct sockaddr *)&sender, &slen) > 0) {
-
 		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_ANNOUNCE) {
 			if (flag_is_set(msg->hdr.flag, PTP_FLAG_TWO_STEP) && !flag_is_set(msg->hdr.flag, PTP_FLAG_UNICAST)) {
 				ctx->server_addr.sin_addr.s_addr = sender.sin_addr.s_addr;
@@ -179,11 +196,11 @@ int ptpc_recv_announce_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 int ptpc_recv_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
-	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
+	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
 
 	int ret = 0;
 
-	if (recv(ctx->event_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
+	if (recv(ctx->event_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0) > 0) {
 		ns_gettime(&sync->recv_ts);
 
 		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_SYNC) {
@@ -202,11 +219,11 @@ int ptpc_recv_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
-	const ptp_msg_t *msg = (ptp_msg_t *)&ctx->rxbuf;
+	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
 
 	int ret = 0;
 
-	if (recv(ctx->general_fd, &ctx->rxbuf, PACKET_BUF_SIZE, 0) > 0) {
+	if (recv(ctx->general_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0) > 0) {
 		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype != PTP_MSGID_ANNOUNCE) {
 			// detected new ptp server?
 			if (msg->hdr.clockId != ctx->ptp_server_id) {
@@ -223,18 +240,18 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 			}
 
 			if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
-				sync->t2 = tstamp_to_ns((tstamp_t *) &msg->follow_up.tstamp);
+				sync->t2 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
 
 				// send DELAY_REP
-				build_ptp_delay_req_msg(sync, (ptp_delay_req_t *) &ctx->txbuf);
-				sendto(ctx->event_fd, &ctx->txbuf, sizeof(ptp_delay_req_t), 0,
+				build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
+				sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
 					   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr));
 				ns_gettime(&sync->t3);
 
 				sync->state = S_FOLLOW_UP;
 				sync->timeout_timer = sync->now;
 			} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
-				sync->t4 = tstamp_to_ns((tstamp_t *) &msg->delay_resp.tstamp);
+				sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
 
 				// offset
 				ctx->ptp_offset = calc_ptp_offset(sync);
