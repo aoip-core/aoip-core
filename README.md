@@ -8,9 +8,26 @@ $ cd Build
 $ cmake ..
 $ make
 
+# create a sine wave at 48kHz/24bit/2ch, and send aes67 multicast stream
+$ sudo ./tonegen
+tonegen_ao_open
+Detected a PTPv2 Announce message. ptp_server_id=1dc1fffe512378
+Synced. sequence=34686, offset=-38761998744
+24479645896470: send sap_msg
+24509645896674: send sap_msg
+24539645896686: send sap_msg
+24569645896835: send sap_msg
+24599645896992: send sap_msg
+24629645897204: send sap_msg
+24659645897348: send sap_msg
+24689645897557: send sap_msg
+^C
+tonegen_ao_close
+tonegen_ao_release
+received_frames=0
+
 # save the multicast stream in an output.wav file
-$ ./capture
-ctrl-c
+$ sudo ./xxxx
 
 # ptpv2 client (two-step)
 $ ./simple-ptpc
