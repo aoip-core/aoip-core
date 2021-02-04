@@ -7,9 +7,11 @@
 
 int tonegen_ao_init(aoip_ctx_t *ctx)
 {
-	int ret = 0;
-	printf("%s\n", __func__);
-	return ret;
+	ctx->audio.tone_period = 0.0;
+	ctx->audio.tone_delta = TONE_FREQ_A4 / ctx->audio_sampling_rate;
+	ctx->audio.rtp_tstamp = 0;
+
+	return 0;
 }
 int tonegen_ao_release(aoip_ctx_t *ctx)
 {
@@ -31,8 +33,50 @@ int tonegen_ao_close(aoip_ctx_t *ctx)
 }
 int tonegen_ao_write(aoip_ctx_t *ctx)
 {
+	queue_t *queue = &ctx->queue;
+
 	int ret = 0;
-	//printf("%s\n", __func__);
+
+	if (!queue_full(queue)) {
+		queue_slot_t *slot = queue_write_ptr(queue);
+
+		// rtp payload
+		slot->len = ctx->rtp.rtp_packet_length;
+		uint8_t *wr = (uint8_t *)(slot->data + sizeof(struct rtp_hdr));
+		for (uint16_t i = 0; i < 288; i+=6, wr+=6) {
+			float_t tonef = generate_tone_data(ctx->audio.tone_period);
+			l24_t tonei = { .i32 = float_to_i32(tonef) };
+			*wr     = tonei.u8[1];
+			*(wr+1) = tonei.u8[2];
+			*(wr+2) = tonei.u8[3];
+
+			*(wr+3) = tonei.u8[1];
+			*(wr+4) = tonei.u8[2];
+			*(wr+5) = tonei.u8[3];
+
+			ctx->audio.tone_period += ctx->audio.tone_delta;
+			if (ctx->audio.tone_period >= 1.0)
+				ctx->audio.tone_period = 0;
+		}
+
+		// rtp header
+		struct rtp_hdr *rtp_hdr = (struct rtp_hdr *)slot->data;
+		rtp_hdr->sequence = htons(ctx->rtp.sequence++);
+
+		if (ctx->audio.rtp_tstamp == 0) {
+			uint32_t current_ptp_time = ptp_time(ctx->ptpc.ptp_offset);
+			ctx->audio.rtp_tstamp = (current_ptp_time * 48) & 0xffffffff;
+			rtp_hdr->timestamp = htonl(ctx->audio.rtp_tstamp);
+		} else {
+			rtp_hdr->timestamp = htonl(ctx->audio.rtp_tstamp);
+			ctx->audio.rtp_tstamp = (ctx->audio.rtp_tstamp + 48) & 0xffffffff;
+		}
+
+		queue_write_next(queue);
+	}
+
+	usleep(1000);
+
 	return ret;
 }
 

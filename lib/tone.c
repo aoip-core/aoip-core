@@ -16,3 +16,17 @@ void float_to_l24(float_t f, int32_t buf[]) {
 	b->u8[1] = l24.u8[3];
 	b->u8[0] = 0;
 }
+
+int32_t float_to_i32(float_t tonef) {
+	int32_t tone_i32;
+
+	if (tonef >= 1.0) {
+		tone_i32 = 2147483647;
+	} else if (tonef <= -1.0) {
+		tone_i32 = -2147483648;
+	} else {
+		tone_i32 = tonef * 2147483648.0;
+	}
+
+	return tone_i32;
+}

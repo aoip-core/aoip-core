@@ -24,3 +24,4 @@ static inline float_t generate_tone_data(float_t period) {
 }
 
 void float_to_l24(float_t, int32_t *);
+int32_t float_to_i32(float_t);

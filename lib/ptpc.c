@@ -264,9 +264,10 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 				// offset
 				ctx->ptp_offset = calc_ptp_offset(sync);
 
-				//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+				printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
 				ptp_sync_state_reset(sync);
 				sync->timeout_timer = sync->now;
+				ret = 1;
 			}
 		}
 	}

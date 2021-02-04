@@ -39,7 +39,9 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 	}
 
 	// mcast_addr
-	inet_pton(AF_INET, RTP_MULTICAST_GROUP, &ctx->mcast_addr);
+	ctx->mcast_addr.sin_family = AF_INET;
+	ctx->mcast_addr.sin_port = htons(RTP_PORT);
+	inet_pton(AF_INET, RTP_MULTICAST_GROUP, &ctx->mcast_addr.sin_addr);
 
 	// rtp_fd
 	if ((ctx->rtp_fd = aoip_socket_udp_nonblock()) < 0) {
@@ -61,7 +63,7 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 			goto out;
 		}
 
-		if (aoip_mcast_membership(ctx->rtp_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+		if (aoip_mcast_membership(ctx->rtp_fd, ctx->local_addr, ctx->mcast_addr.sin_addr) < 0) {
 			fprintf(stderr, "aoip_mcast_membership: failed\n");
 			ret = -1;
 			goto out;
@@ -76,7 +78,7 @@ void
 rtp_context_destroy(rtp_ctx_t *ctx)
 {
 	if (ctx->rtp_mode == RTP_MODE_RECV) {
-		if (aoip_drop_mcast_membership(ctx->rtp_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+		if (aoip_drop_mcast_membership(ctx->rtp_fd, ctx->local_addr, ctx->mcast_addr.sin_addr) < 0) {
 			fprintf(stderr, "aoip_drop_mcast_membership: failed\n");
 		}
 	}
@@ -98,4 +100,15 @@ int recv_rtp_packet(rtp_ctx_t *ctx)
 	}
 
 	return ret;
+}
+
+void build_rtp_hdr(uint8_t *buf, uint8_t ptype, uint32_t ssrc)
+{
+	struct rtp_hdr *rtp = (struct rtp_hdr *)buf;
+
+	memset(buf, 0, sizeof(struct rtp_hdr));
+
+	rtp->version = 0x2;
+	rtp->payload_type = ptype;
+	rtp->ssrc = htonl(ssrc);
 }

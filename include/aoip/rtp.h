@@ -29,15 +29,17 @@ struct rtp_hdr {
 # error "Please fix <bits/endian.h>"
 #endif
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-    uint8_t payload_type :7;
-    uint8_t marker :1;
-#elif __BYTE_ORDER == __BIG_ENDIAN
-    uint8_t marker :1;
-    uint8_t payload_type :7;
-#else
-# error "Please fix <bits/endian.h>"
-#endif
+//#if __BYTE_ORDER == __LITTLE_ENDIAN
+//    uint8_t payload_type :7;
+//    uint8_t marker :1;
+//#elif __BYTE_ORDER == __BIG_ENDIAN
+//    uint8_t marker :1;
+//    uint8_t payload_type :7;
+//#else
+//# error "Please fix <bits/endian.h>"
+//#endif
+
+    uint8_t payload_type;
 
     uint16_t sequence;
     uint32_t timestamp;
@@ -59,9 +61,11 @@ typedef struct {
 
 	struct in_addr local_addr;
 
-	struct in_addr mcast_addr;
+	struct sockaddr_in mcast_addr;
 
 	uint16_t rtp_packet_length;
+
+	uint16_t sequence;
 
 	int rtp_fd;
 
@@ -71,12 +75,8 @@ typedef struct {
 	uint8_t *rxbuf;
 } rtp_ctx_t;
 
-static inline uint32_t ns_to_rtp_tstamp(ns_t ns, uint16_t rtp_samples)
-{
-	return (uint32_t)((ns / 1000000) * rtp_samples);
-}
 
 int rtp_create_context(rtp_ctx_t *, const rtp_config_t *, struct in_addr, uint16_t, uint16_t, uint8_t *, uint8_t *);
 void rtp_context_destroy(rtp_ctx_t *);
 int recv_rtp_packet(rtp_ctx_t *);
-void build_rtp_packet(rtp_ctx_t *, struct rtp_hdr *);
+void build_rtp_hdr(uint8_t *, uint8_t, uint32_t);

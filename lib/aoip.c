@@ -15,6 +15,8 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 		goto err;
 	}
 
+	uint8_t ptype = 96;
+	uint32_t ssrc = (uint32_t)time(NULL);
 	for (uint16_t i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
 		queue->slot[i].len = 0;
 		queue->slot[i].data = (uint8_t *)calloc(ctx->rtp.rtp_packet_length, sizeof(uint8_t));
@@ -23,6 +25,9 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 			ret = -1;
 			goto err;
 		}
+
+		// rtp header
+		build_rtp_hdr(queue->slot[i].data, ptype, ssrc);
 	}
 
 err:
@@ -112,7 +117,7 @@ static int network_init(aoip_ctx_t *ctx, aoip_config_t *config)
 
 	// RTP
 	uint16_t rtp_packet_length = RTP_HDR_SIZE +
-					   ((ctx->audio_format >> 3) * ctx->audio_channels * (ctx->audio_sampling_rate / ctx->audio_packet_time));
+		((ctx->audio_format >> 3) * ctx->audio_channels * (ctx->audio_sampling_rate / ctx->audio_packet_time));
 	if (rtp_create_context(&ctx->rtp, &config->rtp, ctx->local_addr, rtp_packet_length,
 						   ctx->audio_packet_time, ctx->txbuf, ctx->rxbuf) < 0) {
 		fprintf(stderr, "rtp_create_context: failed\n");
@@ -164,17 +169,17 @@ int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config)
 	// ctx->aoip_mode
 	ctx->aoip_mode = config->aoip_mode;
 
-	if (aoip_queue_init(ctx, &ctx->queue) < 0) {
-		ret = -1;
-		goto out;
-	}
-
 	if (network_init(ctx, config) < 0) {
 		ret = -1;
 		goto out;
 	}
 
 	if (audio_init(ctx) < 0) {
+		ret = -1;
+		goto out;
+	}
+
+	if (aoip_queue_init(ctx, &ctx->queue) < 0) {
 		ret = -1;
 		goto out;
 	}
@@ -260,23 +265,24 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 		ns_gettime(&sync.now);
 
 		// receive PTP event packets
-		if (ptpc_recv_sync_msg(&ctx->ptpc, &sync) < 0) {
+		if ((ret = ptpc_recv_sync_msg(&ctx->ptpc, &sync)) < 0) {
 			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
-			ret = -1;
 			break;
 		}
 
 		// receive PTP general packets
-		if (ptpc_recv_general_packet(&ctx->ptpc, &sync) < 0) {
+		ret = ptpc_recv_general_packet(&ctx->ptpc, &sync);
+		if (ret == 1) {
+			// TODO: success
+			break;
+		} else if (ret < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
-			ret = -1;
 			break;
 		}
 
 		// PTP timeout
-		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
+		if ((ret = ns_sub(sync.now, sync.timeout_timer)) >= TIMEOUT_PTP_TIMER) {
 			fprintf(stderr, "ptp_timeout\n");
-			ret = -1;
 			break;
 		}
 
@@ -286,7 +292,7 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 	return ret;
 }
 
-#define AOIP_PTP_SYNC_TIMER (5 * NS_SEC)
+//#define AOIP_PTP_SYNC_TIMER (5 * NS_SEC)
 
 static int
 network_send_loop(aoip_ctx_t *ctx)
@@ -306,7 +312,7 @@ network_send_loop(aoip_ctx_t *ctx)
 	}
 
 	// send a SDP message
-	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr,
+	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr.sin_addr,
 					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
 					  ctx->ptpc.ptp_server_id) < 0) {
 		fprintf(stderr, "build_sap_msg: failed\n");
@@ -322,19 +328,19 @@ network_send_loop(aoip_ctx_t *ctx)
 
 	ns_t now;
 	ns_gettime(&now);
-	ns_t ptp_sync_timer = now;
 	ns_t sap_timeout_timer = now;
 
 	// main loop
 	while (!ctx->network_stop_flag) {
+		ns_gettime(&now);
+
+		/*
 		// PTP sync
-		if (ns_sub(now, ptp_sync_timer) >= AOIP_PTP_SYNC_TIMER) {
-			if (ptpc_sync_loop(ctx) < 0) {
-				ret = -1;
-				break;
-			}
-			ptp_sync_timer = now;
+		if (ptpc_sync_loop(ctx) < 0) {
+			ret = -1;
+			break;
 		}
+		*/
 
 		// RTP send
 		queue_t *queue = &ctx->queue;
@@ -346,6 +352,7 @@ network_send_loop(aoip_ctx_t *ctx)
 				 ret = -1;
 				 break;
 			 }
+			 //printf("rtp_send\n");
 			 queue_read_next(queue);
 		 }
 
