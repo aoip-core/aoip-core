@@ -73,7 +73,7 @@ search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 #define MEDIA_NAME    "m=audio 5004 RTP/AVP 96\r\n"
 //#define MEDIA_TITLE   "i=2 channels: Left, Right\r\n"
 //#define MEDIA_TITLE   "i=Channels 1-8\r\n"
-#define MEDIA_ATTR0   "a=rtpmap:96 L%d/%d/%d\r\n"
+#define MEDIA_ATTR0   "a=rtpmap:97 L%d/%d/%d\r\n"
 #define MEDIA_ATTR1   "a=recvonly\r\n"
 #define MEDIA_ATTR2   "a=ptime:1\r\n"
 #define MEDIA_ATTR3   "a=ts-refclk:ptp=IEEE1588-2008:%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X:0\r\n"

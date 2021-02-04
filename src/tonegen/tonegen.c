@@ -46,13 +46,13 @@ int tonegen_ao_write(aoip_ctx_t *ctx)
 		for (uint16_t i = 0; i < 288; i+=6, wr+=6) {
 			float_t tonef = generate_tone_data(ctx->audio.tone_period);
 			l24_t tonei = { .i32 = float_to_i32(tonef) };
-			*wr     = tonei.u8[1];
+			*wr     = tonei.u8[3];
 			*(wr+1) = tonei.u8[2];
-			*(wr+2) = tonei.u8[3];
+			*(wr+2) = tonei.u8[1];
 
-			*(wr+3) = tonei.u8[1];
+			*(wr+3) = tonei.u8[3];
 			*(wr+4) = tonei.u8[2];
-			*(wr+5) = tonei.u8[3];
+			*(wr+5) = tonei.u8[1];
 
 			ctx->audio.tone_period += ctx->audio.tone_delta;
 			if (ctx->audio.tone_period >= 1.0)

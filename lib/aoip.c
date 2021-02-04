@@ -15,8 +15,6 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 		goto err;
 	}
 
-	uint8_t ptype = 96;
-	uint32_t ssrc = (uint32_t)time(NULL);
 	for (uint16_t i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
 		queue->slot[i].len = 0;
 		queue->slot[i].data = (uint8_t *)calloc(ctx->rtp.rtp_packet_length, sizeof(uint8_t));
@@ -27,6 +25,8 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 		}
 
 		// rtp header
+		uint8_t ptype = 97;
+		uint32_t ssrc = (uint32_t)time(NULL);
 		build_rtp_hdr(queue->slot[i].data, ptype, ssrc);
 	}
 
@@ -345,16 +345,20 @@ network_send_loop(aoip_ctx_t *ctx)
 		// RTP send
 		queue_t *queue = &ctx->queue;
 		if (!queue_empty(queue)) {
-			 const queue_slot_t *slot = queue_read_ptr(queue);
-			 if (sendto(ctx->rtp.rtp_fd, slot->data, slot->len, 0,
-						(struct sockaddr *)&ctx->rtp.mcast_addr, sizeof(ctx->rtp.mcast_addr)) < 0) {
-				 perror("sendto(rtp_fd)");
-				 ret = -1;
-				 break;
-			 }
-			 //printf("rtp_send\n");
-			 queue_read_next(queue);
-		 }
+			const queue_slot_t *slot = queue_read_ptr(queue);
+			if (sendto(ctx->rtp.rtp_fd, slot->data, slot->len, 0,
+				(struct sockaddr *)&ctx->rtp.mcast_addr, sizeof(ctx->rtp.mcast_addr)) < 0) {
+				if (errno == EAGAIN) {
+					continue;
+				} else {
+					perror("sendto(rtp_fd)");
+					ret = -1;
+					break;
+				}
+			}
+			//printf("rtp_send\n");
+			queue_read_next(queue);
+		}
 
 		// send SAP message
 		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
