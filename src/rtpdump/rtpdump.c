@@ -42,7 +42,7 @@ int rtpdump_ao_open(aoip_ctx_t *ctx, void *arg)
 
 	int ret = 0;
 	if (init_wav_hdr(audio->fd, &wav_hdr) < 1) {
-		perror("write(ao->dev.fd)");
+		perror("write(audio->fd)");
 		ret = -1;
 	}
 
@@ -66,24 +66,6 @@ int rtpdump_ao_read(aoip_queue_t *queue, void *arg)
 	const queue_slot_t *slot = queue_read_ptr(queue);
 
 	if (!queue_empty(queue)) {
-//		struct rtp_hdr *rtp = (struct rtp_hdr *)&slot->data[0];
-//		printf( "rtp.version=%u, rtp.payload_type=%u, "
-//			"rtp.sequence=%u, rtp.timestamp=%u\n",
-//				rtp->version, rtp->payload_type,
-//				ntohs(rtp->sequence), ntohl(rtp->timestamp));
-//
-//		count = write(ao->dev.fd, (char *)slot->data + RTP_HDR_SIZE,
-//				slot->len - RTP_HDR_SIZE);
-//		if (count < 1) {
-//			perror("write");
-//			ret = -1;
-//		}
-//		uint8_t *list = (uint8_t *)&slot->data[0];
-//		printf( "%02X %02X %02X %02X "
-//			"%02X %02X %02X %02X\n",
-//				list[12], list[13], list[14], list[15],
-//				list[16], list[17], list[18], list[19]);
-
 		uint8_t *rd = queue_audio_data_read_ptr(queue);
 		for (uint16_t i = RTP_HDR_SIZE; i < slot->len; i+=6) {
 			tmp[0] = rd[2+i];
@@ -94,7 +76,7 @@ int rtpdump_ao_read(aoip_queue_t *queue, void *arg)
 			tmp[4] = rd[4+i];
 			tmp[5] = rd[3+i];
 			if (write(audio->fd, tmp, sizeof(tmp)) < 1) {
-				perror("write(ao->dev.fd)");
+				perror("write(audio->fd)");
 				ret = -1;
 			}
 			audio->received_frames = (audio->received_frames + 1) & 0xffffffff;

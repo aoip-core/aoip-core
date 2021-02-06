@@ -501,7 +501,7 @@ static int audio_record_loop(aoip_ctx_t *ctx)
 		ns_gettime(&now);
 
 		if (ns_sub(now, audio_write_timer) >= ONE_MSEC) {
-			if ((ret = ctx->ops->ao_read(&ctx->queue, ctx->audio_arg)) < 0) {
+			if (ctx->ops->ao_read(&ctx->queue, ctx->audio_arg) < 0) {
 				perror("ops->ao_read");
 				ret = -1;
 				break;
@@ -526,7 +526,7 @@ static int audio_playback_loop(aoip_ctx_t *ctx)
 		ns_gettime(&now);
 
 		if (ns_sub(now, audio_write_timer) >= ONE_MSEC) {
-			if ((ret = ctx->ops->ao_write(&ctx->queue, ctx->audio_arg)) < 0) {
+			if (ctx->ops->ao_write(&ctx->queue, ctx->audio_arg) < 0) {
 				fprintf(stderr, "ops->ao_write: failed");
 				ret = -1;
 				break;
@@ -544,9 +544,9 @@ int audio_cb_run(aoip_ctx_t *ctx)
 {
 	struct aoip_operations *ops = ctx->ops;
 
-	int ret;
+	int ret = 0;
 
-	if ((ret = ops->ao_open(ctx, ctx->audio_arg)) < 0) {
+	if (ops->ao_open(ctx, ctx->audio_arg) < 0) {
 		fprintf(stderr, "ops->ao_open: failed\n");
 		ret = -1;
 		goto out;
@@ -555,12 +555,12 @@ int audio_cb_run(aoip_ctx_t *ctx)
 	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
 	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK && ops->ao_read) {
-		if ((ret = audio_record_loop(ctx)) < 0) {
+		if (audio_record_loop(ctx) < 0) {
 		    ret = -1;
 		    goto out;
 		}
 	} else if (ctx->aoip_mode == AOIP_MODE_RECORD && ops->ao_write) {
-		if ((ret = audio_playback_loop(ctx)) < 0) {
+		if (audio_playback_loop(ctx) < 0) {
 		    ret = -1;
 		    goto out;
 		}
@@ -570,7 +570,7 @@ int audio_cb_run(aoip_ctx_t *ctx)
 		goto out;
 	}
 
-	if ((ret = ops->ao_close(ctx, ctx->audio_arg)) < 0) {
+	if (ops->ao_close(ctx, ctx->audio_arg) < 0) {
 		fprintf(stderr, "ops->ao_close: failed\n");
 		ret = -1;
 		goto out;
