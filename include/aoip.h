@@ -23,7 +23,6 @@
 #include "aoip/queue.h"
 #include "aoip/sap.h"
 #include "aoip/rtp.h"
-#include "aoip/tone.h"
 
 #define DATA_QUEUE_SLOT_NUM  512
 #define AOIP_PACKET_BUF_SIZE 512

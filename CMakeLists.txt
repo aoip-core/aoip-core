@@ -61,13 +61,7 @@ add_executable(tonegen src/tonegen/tonegen.c)
 target_link_libraries(tonegen Threads::Threads m aoip)
 
 # capture
-add_executable(capture
-	src/capture/capture.c
-	src/capture/myapp.h
-	src/capture/signal.c
-	src/capture/network.c
-	src/capture/audio.c
-)
+add_executable(capture src/capture/capture.c)
 target_link_libraries(capture Threads::Threads aoip)
 
 

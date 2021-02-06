@@ -11,7 +11,7 @@ $ make
 # create a sine wave at 48kHz/24bit/2ch, and send aes67 multicast stream
 $ sudo ./tonegen
 tonegen_ao_open
-Detected a PTPv2 Announce message. ptp_server_id=1dc1fffe512378
+Detected a PTPv2 Announce message. ptp_server_id=xxxxfffe512378
 Synced. sequence=34686, offset=-38761998744
 24479645896470: send sap_msg
 24509645896674: send sap_msg
@@ -27,7 +27,15 @@ tonegen_ao_release
 received_frames=0
 
 # save the multicast stream in an output.wav file
-$ sudo ./xxxx
+$ sudo ./rtpdump
+rtpdump_ao_open
+Detected a PTPv2 Announce message. ptp_server_id=xxxxfffe512378
+Synced. sequence=28942, offset=-178665024348819
+18935652025166: send sap_msg
+^C                     
+rtpdump_ao_close
+rtpdump_ao_release
+$ vlc output.wav
 
 # ptpv2 client (two-step)
 $ ./simple-ptpc

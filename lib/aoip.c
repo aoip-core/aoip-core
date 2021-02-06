@@ -200,28 +200,6 @@ void aoip_context_destroy(aoip_ctx_t *ctx)
 	ctx->ops = NULL;
 }
 
-static int network_recv_loop(aoip_ctx_t *ctx)
-{
-	sap_ctx_t *sap = &ctx->sap;
-
-	int count, ret = 0;
-	ns_t ptp_timer, sap_timer;
-
-	// timer reset
-	ns_gettime(&ptp_timer);
-	ns_gettime(&sap_timer);
-
-	// send first sap :TODO
-	//count = send(sap->sap_fd, (char *)&sap->sap_msg.data, sap->sap_msg.len, 0);
-	//if (count < 1) {
-	//	perror("send(sap.sockfd)");
-	//	ret = -1;
-	//}
-
-
-	return ret;
-}
-
 static int
 ptpc_announce_msg_loop(aoip_ctx_t *ctx)
 {
@@ -293,7 +271,95 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 	return ret;
 }
 
-//#define AOIP_PTP_SYNC_TIMER (5 * NS_SEC)
+static int network_recv_loop(aoip_ctx_t *ctx)
+{
+	int ret = 0;
+
+	// wait a PTPv2 announce message
+	if (ptpc_announce_msg_loop(ctx) < 0) {
+		ret = -1;
+		goto out;
+	}
+
+	// PTPv2 sync
+	if (ptpc_sync_loop(ctx) < 0) {
+		ret = -1;
+		goto out;
+	}
+
+	// send a SDP message
+	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr.sin_addr,
+					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
+					  ctx->ptpc.ptp_server_id) < 0) {
+		fprintf(stderr, "build_sap_msg: failed\n");
+		ret = -1;
+		goto out;
+	}
+	if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
+			   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+		perror("sendto(sap_fd)");
+		ret = -1;
+		goto out;
+	}
+
+	// main loop
+	uint32_t cur_rtp_tstamp = 0;
+	ns_t now;
+	ns_gettime(&now);
+	ns_t sap_timeout_timer = now;
+	uint16_t seq = 0;
+	uint8_t first_data_flg = 1;
+	while (!ctx->network_stop_flag) {
+		queue_t *queue = &ctx->queue;
+
+		ns_gettime(&now);
+
+		/*
+		// PTP sync
+		if (ptpc_sync_loop(ctx) < 0) {
+			ret = -1;
+			break;
+		}
+		*/
+
+		// RTP recv
+		queue_slot_t *slot = queue_write_ptr(queue);
+		ssize_t count;
+		if ((count = recv(ctx->rtp.rtp_fd, slot->data, ctx->rtp.rtp_packet_length, 0)) > 0) {
+			if (!queue_full(queue)) {
+				slot->len = count;
+				slot->seq = seq;
+				ns_gettime(&slot->tstamp);
+				slot->first_data_flg = first_data_flg;
+
+				asm("sfence;");
+				seq = (seq + 1) & 0xffff;
+				first_data_flg = 0;
+				queue_write_next(queue);
+			} else {
+				// packet drop
+				printf("queue is full: %d %d\n", queue->head, queue->tail);
+			}
+		}
+
+		// send SAP message
+		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
+			printf("%"PRIu64": send sap_msg\n", now);
+			if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
+					   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+				perror("sendto(sap_fd)");
+				ret = -1;
+				break;
+			}
+			sap_timeout_timer = now;
+		}
+
+		sched_yield();
+	}
+
+	out:
+	return ret;
+}
 
 static int
 network_send_loop(aoip_ctx_t *ctx)

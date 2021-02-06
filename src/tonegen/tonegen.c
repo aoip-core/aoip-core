@@ -4,6 +4,7 @@
 #include <pthread.h>
 
 #include <aoip.h>
+#include "aoip/tone.h"
 
 struct audio_ctx {
 	float_t tone_period;
@@ -68,10 +69,9 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 				audio->tone_period = 0;
 		}
 
+		asm("sfence;");
 		audio->seq = (audio->seq + 1) & 0xffff;
 		audio->first_data_flg = 0;
-
-		asm("sfence;");
 		queue_write_next(queue);
 	}
 
@@ -79,35 +79,35 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 }
 
 static struct aoip_operations tonegen_ops = {
-		.ao_init = tonegen_ao_init,
-		.ao_release = tonegen_ao_release,
-		.ao_open = tonegen_ao_open,
-		.ao_close = tonegen_ao_close,
-		.ao_read = NULL,
-		.ao_write = tonegen_ao_write,
+	.ao_init = tonegen_ao_init,
+	.ao_release = tonegen_ao_release,
+	.ao_open = tonegen_ao_open,
+	.ao_close = tonegen_ao_close,
+	.ao_read = NULL,
+	.ao_write = tonegen_ao_write,
 };
 
 static aoip_config_t tonegen_config = {
-		.aoip_mode = AOIP_MODE_RECORD,
+	.aoip_mode = AOIP_MODE_RECORD,
 
-		.audio_format = AUDIO_FORMAT_L24,  // 24 bit
-		.audio_sampling_rate = 48000,  // 48 kHz
-		.audio_channels = AUDIO_CHANNEL_STEREO,  // 2ch
-		.audio_packet_time = 1000,  // 1 ms
+	.audio_format = AUDIO_FORMAT_L24,  // 24 bit
+	.audio_sampling_rate = 48000,  // 48 kHz
+	.audio_channels = AUDIO_CHANNEL_STEREO,  // 2ch
+	.audio_packet_time = 1000,  // 1 ms
 
-		.session_name = "aoip-core v0.0.0",
+	.session_name = "aoip-core v0.0.0",
 
-		.local_addr = "10.0.1.104",
+	.local_addr = "10.0.1.104",
 
-		.ptpc.ptp_mode = PTP_MODE_MULTICAST,
-		.ptpc.ptp_domain = 0,
+	.ptpc.ptp_mode = PTP_MODE_MULTICAST,
+	.ptpc.ptp_domain = 0,
 
-		.rtp.rtp_mode = RTP_MODE_SEND,
+	.rtp.rtp_mode = RTP_MODE_SEND,
 
-		.txbuf = NULL,
-		.rxbuf = NULL,
+	.txbuf = NULL,
+	.rxbuf = NULL,
 
-		.ops = &tonegen_ops,
+	.ops = &tonegen_ops,
 };
 
 
@@ -145,7 +145,6 @@ void *ntth_body(void *arg)
 
 	return NULL;
 }
-
 
 int
 main(void)
