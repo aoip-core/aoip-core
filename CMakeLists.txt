@@ -60,9 +60,9 @@ target_link_libraries(simple-rtpc-recv rtp)
 add_executable(tonegen src/tonegen/tonegen.c)
 target_link_libraries(tonegen Threads::Threads m aoip)
 
-# capture
-add_executable(capture src/capture/capture.c)
-target_link_libraries(capture Threads::Threads aoip)
+# rtpdump
+add_executable(rtpdump src/rtpdump/rtpdump.c)
+target_link_libraries(rtpdump Threads::Threads aoip)
 
 
 # test
