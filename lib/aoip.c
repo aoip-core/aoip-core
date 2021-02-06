@@ -7,6 +7,7 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 	queue->head = 0;
 	queue->tail = 0;
 	queue->mask = DATA_QUEUE_SLOT_NUM - 1;  // TODO: temporary hard code
+	queue->data_len = ctx->rtp.rtp_packet_length;
 
 	/* queue_slot */
 	if ((queue->slot = (queue_slot_t *)malloc(sizeof(queue_slot_t) * DATA_QUEUE_SLOT_NUM)) == NULL) {
@@ -17,7 +18,9 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 
 	for (uint16_t i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
 		queue->slot[i].len = 0;
-		queue->slot[i].data = (uint8_t *)calloc(ctx->rtp.rtp_packet_length, sizeof(uint8_t));
+		queue->slot[i].seq = 0;
+		queue->slot[i].tstamp = 0;
+		queue->slot[i].data = (uint8_t *)calloc(queue->data_len, sizeof(uint8_t));
 		if (queue->slot[i].data == NULL) {
 			perror("malloc q->slot[i].data");
 			ret = -1;
@@ -138,8 +141,6 @@ network_device_release(aoip_ctx_t *ctx)
 
 static void aoip_core_close(aoip_ctx_t *ctx)
 {
-	stats_t *stats = (stats_t *)&ctx->stats;
-
 	for (int i = 0; i < DATA_QUEUE_SLOT_NUM; i++) {
 		free(ctx->queue.slot[i].data);
 		ctx->queue.slot[i].data = NULL;
@@ -147,8 +148,6 @@ static void aoip_core_close(aoip_ctx_t *ctx)
 
 	free(ctx->queue.slot);
 	ctx->queue.slot = NULL;
-
-	printf("received_frames=%u\n", stats->received_frames);
 }
 
 int aoip_create_context(aoip_ctx_t *ctx, aoip_config_t *config, void *audio_arg)
@@ -328,12 +327,14 @@ network_send_loop(aoip_ctx_t *ctx)
 		goto out;
 	}
 
+	// main loop
+	uint32_t cur_rtp_tstamp = 0;
 	ns_t now;
 	ns_gettime(&now);
 	ns_t sap_timeout_timer = now;
-
-	// main loop
 	while (!ctx->network_stop_flag) {
+		queue_t *queue = &ctx->queue;
+
 		ns_gettime(&now);
 
 		/*
@@ -345,9 +346,22 @@ network_send_loop(aoip_ctx_t *ctx)
 		*/
 
 		// RTP send
-		queue_t *queue = &ctx->queue;
 		if (!queue_empty(queue)) {
 			const queue_slot_t *slot = queue_read_ptr(queue);
+			struct rtp_hdr *rtp = (struct rtp_hdr *)slot->data;
+
+			// rtp_hdr timestamp field
+			if (slot->first_data_flg) { // temporary flag
+				cur_rtp_tstamp = (ptp_time(slot->tstamp, ctx->ptpc.ptp_offset) * 48) & 0xffffffff;
+			} else {
+				cur_rtp_tstamp = (cur_rtp_tstamp + 48) & 0xffffffff;
+			}
+			rtp->timestamp = htonl(cur_rtp_tstamp);
+
+			// rtp_hdr sequence field
+			rtp->sequence = htons(slot->seq);
+
+			// send a rtp packet
 			if (sendto(ctx->rtp.rtp_fd, slot->data, slot->len, 0,
 				(struct sockaddr *)&ctx->rtp.mcast_addr, sizeof(ctx->rtp.mcast_addr)) < 0) {
 				if (errno == EAGAIN) {
@@ -358,7 +372,8 @@ network_send_loop(aoip_ctx_t *ctx)
 					break;
 				}
 			}
-			//printf("rtp_send\n");
+
+			asm("sfence;");
 			queue_read_next(queue);
 		}
 
@@ -415,7 +430,7 @@ static int audio_record_loop(aoip_ctx_t *ctx)
 	while (!ctx->audio_stop_flag) {
 		printf("audio_record_loop()\n");
 
-		if ((ret = ctx->ops->ao_read(ctx, ctx->audio_arg)) < 0) {
+		if ((ret = ctx->ops->ao_read(&ctx->queue, ctx->audio_arg)) < 0) {
 			perror("ops->ao_read");
 			ret = -1;
 			break;
@@ -432,7 +447,7 @@ static int audio_playback_loop(aoip_ctx_t *ctx)
 	int ret = 0;
 
 	while (!ctx->audio_stop_flag) {
-		if ((ret = ctx->ops->ao_write(ctx, ctx->audio_arg)) < 0) {
+		if ((ret = ctx->ops->ao_write(&ctx->queue, ctx->audio_arg)) < 0) {
 			fprintf(stderr, "ops->ao_write: failed");
 			ret = -1;
 			break;

@@ -63,11 +63,6 @@ typedef struct {
 	struct aoip_operations *ops;
 } aoip_config_t;
 
-typedef struct aoip_stats {
-	uint32_t received_frames;
-} stats_t;
-
-
 struct aoip_operations;
 
 typedef struct {
@@ -80,8 +75,6 @@ typedef struct {
 	uint32_t audio_sampling_rate;
 	uint8_t audio_channels;
 	uint16_t audio_packet_time;
-
-	stats_t stats;
 
 	queue_t queue;
 
@@ -104,8 +97,8 @@ struct aoip_operations {
 	int (*ao_release)(aoip_ctx_t *ctx, void *arg);
 	int (*ao_open)(aoip_ctx_t *ctx, void *arg);
 	int (*ao_close)(aoip_ctx_t *ctx, void *arg);
-	int (*ao_read)(aoip_ctx_t *ctx, void *arg);
-	int (*ao_write)(aoip_ctx_t *ctx, void *arg);
+	int (*ao_read)(queue_t *queue, void *arg);
+	int (*ao_write)(queue_t *queue, void *arg);
 
 	int (*nt_recv)(aoip_ctx_t *ctx);
 	int (*nt_send)(aoip_ctx_t *ctx);

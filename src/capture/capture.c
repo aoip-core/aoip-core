@@ -23,7 +23,7 @@ static struct aoip_operations myapp_ops = {
 	.ao_release = myapp_ao_release,
 	.ao_open = myapp_ao_open,
 	.ao_close = myapp_ao_close,
-	.ao_read = myapp_ao_read,
+	.ao_read = NULL,
 	.ao_write = myapp_ao_write,
 
 	.nt_recv = myapp_nt_recv,

@@ -26,6 +26,7 @@ int myapp_nt_recv(aoip_ctx_t *ctx)
 			//struct rtp_hdr *rtp = (struct rtp_hdr *)&slot->data[0];
 			//slot->tstamp = ntohl(rtp->timestamp);
 			slot->len = count;
+			asm("sfence;");
 			queue_write_next(queue);
 		} else {
 			// packet drop

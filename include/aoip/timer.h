@@ -44,10 +44,7 @@ static inline ns_t tstamp_to_ns(tstamp_t *ts)
 	return (sec * NS_SEC + (ns_t)ts->ns);
 }
 
-static inline uint32_t ptp_time(int64_t offset)
+static inline uint32_t ptp_time(ns_t ts, int64_t offset)
 {
-	ns_t now;
-	ns_gettime(&now);
-	int64_t network_clock = (int64_t)now - offset;
-	return (uint32_t)((network_clock / 1000000));
+	return (uint32_t)((ts - offset) / 1000000);
 }

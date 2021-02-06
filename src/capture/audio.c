@@ -12,10 +12,8 @@ int myapp_ao_init(aoip_ctx_t *ctx, void *arg)
 	if (audio->fd < 0) {
 		perror("open(ao->dev.fd)");
 		ret = -1;
-		goto out;
 	}
 
-out:
 	return ret;
 }
 
@@ -45,21 +43,13 @@ int myapp_ao_open(aoip_ctx_t *ctx, void *arg)
 int myapp_ao_close(aoip_ctx_t *ctx, void *arg)
 {
 	struct audio_ctx *audio = (struct audio_ctx *)arg;
-    const stats_t *stats = &ctx->stats;
 
-	return update_wav_hdr(audio->fd, stats->received_frames);
+	return update_wav_hdr(audio->fd, audio->received_frames);
 }
 
-int myapp_ao_read(aoip_ctx_t *ctx, void *arg)
-{
-	return 0;
-}
-
-int myapp_ao_write(aoip_ctx_t *ctx, void *arg)
+int myapp_ao_write(aoip_queue_t *queue, void *arg)
 {
 	struct audio_ctx *audio = (struct audio_ctx *)arg;
-	stats_t *stats = &ctx->stats;
-	queue_t *queue = &ctx->queue;
 	uint8_t tmp[6];
 
 	int count = 0, ret = 0;
@@ -98,9 +88,10 @@ int myapp_ao_write(aoip_ctx_t *ctx, void *arg)
 				perror("write(ao->dev.fd)");
 				ret = -1;
 			}
-			++stats->received_frames;
+			audio->received_frames = (audio->received_frames + 1) & 0xffffffff;
 		}
 
+		asm("sfence;");
 		queue_read_next(queue);
 	}
 

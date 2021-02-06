@@ -8,7 +8,8 @@
 struct audio_ctx {
 	float_t tone_period;
 	float_t tone_delta;
-	uint32_t rtp_tstamp;
+	uint16_t seq;
+	uint8_t first_data_flg;  // temporary
 };
 
 int tonegen_ao_init(aoip_ctx_t *aoip, void *arg)
@@ -19,7 +20,8 @@ int tonegen_ao_init(aoip_ctx_t *aoip, void *arg)
 
 	audio->tone_period = 0.0;
 	audio->tone_delta = TONE_FREQ_A4 / aoip->audio_sampling_rate;
-	audio->rtp_tstamp = 0;
+	audio->seq = 0;
+	audio->first_data_flg = 1;
 
 	return 0;
 }
@@ -38,19 +40,19 @@ int tonegen_ao_close(aoip_ctx_t *aoip, void *arg)
 	printf("%s\n", __func__);
 	return 0;
 }
-int tonegen_ao_write(aoip_ctx_t *aoip, void *arg)
+int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 {
 	struct audio_ctx *audio = (struct audio_ctx *)arg;
-	queue_t *queue = &aoip->queue;
-
-	int ret = 0;
 
 	if (!queue_full(queue)) {
 		queue_slot_t *slot = queue_write_ptr(queue);
 
-		// rtp payload
-		slot->len = aoip->rtp.rtp_packet_length;
-		uint8_t *wr = (uint8_t *)(slot->data + sizeof(struct rtp_hdr));
+		slot->len = queue->data_len;
+		slot->seq = audio->seq;
+		ns_gettime(&slot->tstamp);
+		slot->first_data_flg = audio->first_data_flg;
+
+		uint8_t *wr = queue_audio_data_write_ptr(queue);
 		for (uint16_t i = 0; i < 288; i+=6, wr+=6) {
 			float_t tonef = generate_tone_data(audio->tone_period);
 			l24_t tonei = { .i32 = float_to_i32(tonef) };
@@ -67,25 +69,16 @@ int tonegen_ao_write(aoip_ctx_t *aoip, void *arg)
 				audio->tone_period = 0;
 		}
 
-		// rtp header
-		struct rtp_hdr *rtp_hdr = (struct rtp_hdr *)slot->data;
-		rtp_hdr->sequence = htons(aoip->rtp.sequence++);
+		audio->seq = (audio->seq + 1) & 0xffff;
+		audio->first_data_flg = 0;
 
-		if (audio->rtp_tstamp == 0) {
-			uint32_t current_ptp_time = ptp_time(aoip->ptpc.ptp_offset);
-			audio->rtp_tstamp = (current_ptp_time * 48) & 0xffffffff;
-			rtp_hdr->timestamp = htonl(audio->rtp_tstamp);
-		} else {
-			rtp_hdr->timestamp = htonl(audio->rtp_tstamp);
-			audio->rtp_tstamp = (audio->rtp_tstamp + 48) & 0xffffffff;
-		}
-
+		asm("sfence;");
 		queue_write_next(queue);
 	}
 
 	usleep(1000);
 
-	return ret;
+	return 0;
 }
 
 static struct aoip_operations tonegen_ops = {
