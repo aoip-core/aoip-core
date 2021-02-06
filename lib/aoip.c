@@ -423,17 +423,24 @@ void network_cb_stop(aoip_ctx_t *ctx)
 	ctx->network_stop_flag = 1;
 }
 
+#define ONE_MSEC 1000000  // temporary
 static int audio_record_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
+	ns_t now;
+	ns_gettime(&now);
+	ns_t audio_write_timer = now;
 	while (!ctx->audio_stop_flag) {
-		printf("audio_record_loop()\n");
+		ns_gettime(&now);
 
-		if ((ret = ctx->ops->ao_read(&ctx->queue, ctx->audio_arg)) < 0) {
-			perror("ops->ao_read");
-			ret = -1;
-			break;
+		if (ns_sub(now, audio_write_timer) >= ONE_MSEC) {
+			if ((ret = ctx->ops->ao_read(&ctx->queue, ctx->audio_arg)) < 0) {
+				perror("ops->ao_read");
+				ret = -1;
+				break;
+			}
+			audio_write_timer = now;
 		}
 
 		sched_yield();
@@ -446,11 +453,19 @@ static int audio_playback_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
+	ns_t now;
+	ns_gettime(&now);
+	ns_t audio_write_timer = now;
 	while (!ctx->audio_stop_flag) {
-		if ((ret = ctx->ops->ao_write(&ctx->queue, ctx->audio_arg)) < 0) {
-			fprintf(stderr, "ops->ao_write: failed");
-			ret = -1;
-			break;
+		ns_gettime(&now);
+
+		if (ns_sub(now, audio_write_timer) >= ONE_MSEC) {
+			if ((ret = ctx->ops->ao_write(&ctx->queue, ctx->audio_arg)) < 0) {
+				fprintf(stderr, "ops->ao_write: failed");
+				ret = -1;
+				break;
+			}
+			audio_write_timer = now;
 		}
 
 		sched_yield();

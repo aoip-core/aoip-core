@@ -46,7 +46,6 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 
 	if (!queue_full(queue)) {
 		queue_slot_t *slot = queue_write_ptr(queue);
-
 		slot->len = queue->data_len;
 		slot->seq = audio->seq;
 		ns_gettime(&slot->tstamp);
@@ -75,8 +74,6 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 		asm("sfence;");
 		queue_write_next(queue);
 	}
-
-	usleep(1000);
 
 	return 0;
 }
