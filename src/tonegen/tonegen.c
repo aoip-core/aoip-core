@@ -5,35 +5,43 @@
 
 #include <aoip.h>
 
-int tonegen_ao_init(aoip_ctx_t *ctx)
+struct audio_ctx {
+	float_t tone_period;
+	float_t tone_delta;
+	uint32_t rtp_tstamp;
+};
+
+int tonegen_ao_init(aoip_ctx_t *aoip, void *arg)
 {
-	ctx->audio.tone_period = 0.0;
-	ctx->audio.tone_delta = TONE_FREQ_A4 / ctx->audio_sampling_rate;
-	ctx->audio.rtp_tstamp = 0;
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
+
+	memset(audio, 0, sizeof(struct audio_ctx));
+
+	audio->tone_period = 0.0;
+	audio->tone_delta = TONE_FREQ_A4 / aoip->audio_sampling_rate;
+	audio->rtp_tstamp = 0;
 
 	return 0;
 }
-int tonegen_ao_release(aoip_ctx_t *ctx)
+int tonegen_ao_release(aoip_ctx_t *aoip, void *arg)
 {
-	int ret = 0;
 	printf("%s\n", __func__);
-	return ret;
+	return 0;
 }
-int tonegen_ao_open(aoip_ctx_t *ctx)
+int tonegen_ao_open(aoip_ctx_t *aoip, void *arg)
 {
-	int ret = 0;
 	printf("%s\n", __func__);
-	return ret;
+	return 0;
 }
-int tonegen_ao_close(aoip_ctx_t *ctx)
+int tonegen_ao_close(aoip_ctx_t *aoip, void *arg)
 {
-	int ret = 0;
 	printf("%s\n", __func__);
-	return ret;
+	return 0;
 }
-int tonegen_ao_write(aoip_ctx_t *ctx)
+int tonegen_ao_write(aoip_ctx_t *aoip, void *arg)
 {
-	queue_t *queue = &ctx->queue;
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
+	queue_t *queue = &aoip->queue;
 
 	int ret = 0;
 
@@ -41,10 +49,10 @@ int tonegen_ao_write(aoip_ctx_t *ctx)
 		queue_slot_t *slot = queue_write_ptr(queue);
 
 		// rtp payload
-		slot->len = ctx->rtp.rtp_packet_length;
+		slot->len = aoip->rtp.rtp_packet_length;
 		uint8_t *wr = (uint8_t *)(slot->data + sizeof(struct rtp_hdr));
 		for (uint16_t i = 0; i < 288; i+=6, wr+=6) {
-			float_t tonef = generate_tone_data(ctx->audio.tone_period);
+			float_t tonef = generate_tone_data(audio->tone_period);
 			l24_t tonei = { .i32 = float_to_i32(tonef) };
 			*wr     = tonei.u8[3];
 			*(wr+1) = tonei.u8[2];
@@ -54,22 +62,22 @@ int tonegen_ao_write(aoip_ctx_t *ctx)
 			*(wr+4) = tonei.u8[2];
 			*(wr+5) = tonei.u8[1];
 
-			ctx->audio.tone_period += ctx->audio.tone_delta;
-			if (ctx->audio.tone_period >= 1.0)
-				ctx->audio.tone_period = 0;
+			audio->tone_period += audio->tone_delta;
+			if (audio->tone_period >= 1.0)
+				audio->tone_period = 0;
 		}
 
 		// rtp header
 		struct rtp_hdr *rtp_hdr = (struct rtp_hdr *)slot->data;
-		rtp_hdr->sequence = htons(ctx->rtp.sequence++);
+		rtp_hdr->sequence = htons(aoip->rtp.sequence++);
 
-		if (ctx->audio.rtp_tstamp == 0) {
-			uint32_t current_ptp_time = ptp_time(ctx->ptpc.ptp_offset);
-			ctx->audio.rtp_tstamp = (current_ptp_time * 48) & 0xffffffff;
-			rtp_hdr->timestamp = htonl(ctx->audio.rtp_tstamp);
+		if (audio->rtp_tstamp == 0) {
+			uint32_t current_ptp_time = ptp_time(aoip->ptpc.ptp_offset);
+			audio->rtp_tstamp = (current_ptp_time * 48) & 0xffffffff;
+			rtp_hdr->timestamp = htonl(audio->rtp_tstamp);
 		} else {
-			rtp_hdr->timestamp = htonl(ctx->audio.rtp_tstamp);
-			ctx->audio.rtp_tstamp = (ctx->audio.rtp_tstamp + 48) & 0xffffffff;
+			rtp_hdr->timestamp = htonl(audio->rtp_tstamp);
+			audio->rtp_tstamp = (audio->rtp_tstamp + 48) & 0xffffffff;
 		}
 
 		queue_write_next(queue);
@@ -79,8 +87,6 @@ int tonegen_ao_write(aoip_ctx_t *ctx)
 
 	return ret;
 }
-
-volatile sig_atomic_t caught_signal;
 
 static struct aoip_operations tonegen_ops = {
 		.ao_init = tonegen_ao_init,
@@ -114,6 +120,8 @@ static aoip_config_t tonegen_config = {
 		.ops = &tonegen_ops,
 };
 
+
+volatile sig_atomic_t caught_signal;
 
 void sig_handler(int sig) {
 	caught_signal = sig;
@@ -161,25 +169,28 @@ main(void)
 	}
 
 	// init aoip device
-	aoip_ctx_t ctx = {0};
+	aoip_ctx_t aoip = {0};
+
 	uint8_t txbuf[AOIP_PACKET_BUF_SIZE] = {0};
 	uint8_t rxbuf[AOIP_PACKET_BUF_SIZE] = {0};
 	tonegen_config.txbuf = txbuf;
 	tonegen_config.rxbuf = rxbuf;
 
-	if (aoip_create_context(&ctx, &tonegen_config) < 0) {
+	struct audio_ctx audio_arg = {0};
+
+	if (aoip_create_context(&aoip, &tonegen_config, &audio_arg) < 0) {
 		fprintf(stderr, "ptpc_create_context: failed\n");
 		return 1;
 	}
 
 	// audio and network threads
 	pthread_t aoth, ntth;
-	if (pthread_create(&ntth, NULL, ntth_body, &ctx)) {
+	if (pthread_create(&ntth, NULL, ntth_body, &aoip)) {
 		perror("network pthread create");
 		return 1;
 	}
 
-	if (pthread_create(&aoth, NULL, aoth_body, &ctx)) {
+	if (pthread_create(&aoth, NULL, aoth_body, &aoip)) {
 		perror("audio pthread create");
 		return 1;
 	}
@@ -188,8 +199,8 @@ main(void)
 		sleep(1);
 	}
 
-	network_cb_stop(&ctx);
-	audio_cb_stop(&ctx);
+	network_cb_stop(&aoip);
+	audio_cb_stop(&aoip);
 
 	if (pthread_join(ntth, NULL) != 0) {
 		perror("network thread join");
@@ -201,7 +212,7 @@ main(void)
 		return 1;
 	}
 
-	aoip_context_destroy(&ctx);
+	aoip_context_destroy(&aoip);
 
 	return 0;
 }

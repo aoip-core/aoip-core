@@ -67,13 +67,6 @@ typedef struct aoip_stats {
 	uint32_t received_frames;
 } stats_t;
 
-typedef struct aoip_audio_dev {
-	int fd;
-	float_t tone_period;  // TODO: temporary
-	float_t tone_delta; // TODO: temporary
-	uint32_t rtp_tstamp;
-} audio_t;
-
 
 struct aoip_operations;
 
@@ -92,8 +85,6 @@ typedef struct {
 
 	queue_t queue;
 
-	audio_t audio;
-
 	ptpc_ctx_t ptpc;
 	sap_ctx_t sap;
 	rtp_ctx_t rtp;
@@ -104,15 +95,17 @@ typedef struct {
 	uint8_t *txbuf;
 	uint8_t *rxbuf;
 	struct aoip_operations *ops;
+
+	void *audio_arg;
 } aoip_ctx_t;
 
 struct aoip_operations {
-	int (*ao_init)(aoip_ctx_t *ctx);
-	int (*ao_release)(aoip_ctx_t *ctx);
-	int (*ao_open)(aoip_ctx_t *ctx);
-	int (*ao_close)(aoip_ctx_t *ctx);
-	int (*ao_read)(aoip_ctx_t *ctx);
-	int (*ao_write)(aoip_ctx_t *ctx);
+	int (*ao_init)(aoip_ctx_t *ctx, void *arg);
+	int (*ao_release)(aoip_ctx_t *ctx, void *arg);
+	int (*ao_open)(aoip_ctx_t *ctx, void *arg);
+	int (*ao_close)(aoip_ctx_t *ctx, void *arg);
+	int (*ao_read)(aoip_ctx_t *ctx, void *arg);
+	int (*ao_write)(aoip_ctx_t *ctx, void *arg);
 
 	int (*nt_recv)(aoip_ctx_t *ctx);
 	int (*nt_send)(aoip_ctx_t *ctx);
@@ -121,7 +114,7 @@ struct aoip_operations {
 
 #define AOIP_API    extern
 
-AOIP_API int aoip_create_context(aoip_ctx_t *, aoip_config_t *);
+AOIP_API int aoip_create_context(aoip_ctx_t *, aoip_config_t *, void *);
 AOIP_API void aoip_context_destroy(aoip_ctx_t *);
 
 AOIP_API int network_cb_run(aoip_ctx_t *);

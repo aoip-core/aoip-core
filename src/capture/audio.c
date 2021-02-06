@@ -1,15 +1,15 @@
 #include "myapp.h"
 #include "aoip/wav.h"
 
-int myapp_ao_init(aoip_ctx_t *ctx)
+int myapp_ao_init(aoip_ctx_t *ctx, void *arg)
 {
-	audio_t *ao = &ctx->audio;
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
 
 	int ret = 0;
 
     char file_name[] = "output.wav";
-	ao->fd = wav_open(file_name);
-	if (ao->fd < 0) {
+	audio->fd = wav_open(file_name);
+	if (audio->fd < 0) {
 		perror("open(ao->dev.fd)");
 		ret = -1;
 		goto out;
@@ -19,54 +19,47 @@ out:
 	return ret;
 }
 
-int myapp_ao_release(aoip_ctx_t *ctx)
+int myapp_ao_release(aoip_ctx_t *ctx, void *arg)
 {
-	audio_t *ao = &ctx->audio;
-
-	return ao->fd = wav_close(ao->fd);
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
+	audio->fd = wav_close(audio->fd);
+	return 0;
 }
 
-int myapp_ao_open(aoip_ctx_t *ctx)
+int myapp_ao_open(aoip_ctx_t *ctx, void *arg)
 {
-	audio_t *ao = &ctx->audio;
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
 
-	int ret = 0;
-	ssize_t count;
-
-	struct wav_hdr wav_hdr = {};
+	struct wav_hdr wav_hdr = {0};
 	build_wav_hdr(&wav_hdr);
 
-	count = init_wav_hdr(ao->fd, &wav_hdr);
-	if (count < 1) {
+	int ret = 0;
+	if (init_wav_hdr(audio->fd, &wav_hdr) < 1) {
 		perror("write(ao->dev.fd)");
 		ret = -1;
-		goto out;
 	}
 
-out:
 	return ret;
 }
 
-int myapp_ao_close(aoip_ctx_t *ctx)
+int myapp_ao_close(aoip_ctx_t *ctx, void *arg)
 {
-	const audio_t *ao = &ctx->audio;
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
     const stats_t *stats = &ctx->stats;
 
-	return update_wav_hdr(ao->fd, stats->received_frames);
+	return update_wav_hdr(audio->fd, stats->received_frames);
 }
 
-int myapp_ao_read(aoip_ctx_t *ctx)
+int myapp_ao_read(aoip_ctx_t *ctx, void *arg)
 {
-    int ret = 0;
-
-	return ret;
+	return 0;
 }
 
-int myapp_ao_write(aoip_ctx_t *ctx)
+int myapp_ao_write(aoip_ctx_t *ctx, void *arg)
 {
+	struct audio_ctx *audio = (struct audio_ctx *)arg;
 	stats_t *stats = &ctx->stats;
 	queue_t *queue = &ctx->queue;
-	audio_t *ao = &ctx->audio;
 	uint8_t tmp[6];
 
 	int count = 0, ret = 0;
@@ -93,15 +86,14 @@ int myapp_ao_write(aoip_ctx_t *ctx)
 //				list[16], list[17], list[18], list[19]);
 
 		char *p = (char *)&slot->data[0];
-		int i;
-		for (i = RTP_HDR_SIZE; i < slot->len; i=i+6) {
+		for (int i = RTP_HDR_SIZE; i < slot->len; i=i+6) {
 			tmp[0] = p[2+i]; // big-endian to little-endian
 			tmp[1] = p[1+i];
 			tmp[2] = p[0+i];
 			tmp[3] = p[5+i];
 			tmp[4] = p[4+i];
 			tmp[5] = p[3+i];
-			count = write(ao->fd, tmp, sizeof(tmp));
+			count = write(audio->fd, tmp, sizeof(tmp));
 			if (count < 1) {
 				perror("write(ao->dev.fd)");
 				ret = -1;

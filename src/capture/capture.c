@@ -50,13 +50,10 @@ void *ntth_body(void *arg)
 
 int main(void)
 {
-	int ret;
-
 	// signal
-	struct sigaction sa = {};
+	struct sigaction sa = {0};
 	caught_signal = 0;
-	ret = set_signal(&sa, SIGINT);
-	if (ret < 0) {
+	if (set_signal(&sa, SIGINT) < 0) {
 		fprintf(stderr, "set_signal: failed\n");
 		return 1;
 	}
@@ -68,20 +65,19 @@ int main(void)
 	// audio and network threads
 	pthread_t aoth, ntth;
 
-	ret = aoip_create_context(&ctx, &myapp_config);
-	if (ret < 0) {
+	struct audio_ctx audio_arg = {0};
+
+	if (aoip_create_context(&ctx, &myapp_config, &audio_arg) < 0) {
 		fprintf(stderr, "register_aoip_device: failed\n");
 		return 1;
 	}
 
-	ret = pthread_create(&ntth, NULL, ntth_body, &ctx);
-	if (ret) {
+	if (pthread_create(&ntth, NULL, ntth_body, &ctx)) {
 		perror("network pthread create");
 		return 1;
 	}
 
-	ret = pthread_create(&aoth, NULL, aoth_body, &ctx);
-	if (ret) {
+	if (pthread_create(&aoth, NULL, aoth_body, &ctx)) {
 		perror("audio pthread create");
 		return 1;
 	}
@@ -93,13 +89,11 @@ int main(void)
 	network_cb_stop(&ctx);
 	audio_cb_stop(&ctx);
 
-	ret = pthread_join(ntth, NULL);
-	if (ret != 0) {
+	if (pthread_join(ntth, NULL) != 0) {
 		perror("network thread join");
 		return 1;
 	}
-	ret = pthread_join(aoth, NULL);
-	if (ret != 0) {
+	if (pthread_join(aoth, NULL) != 0) {
 		perror("audio thread join");
 		return 1;
 	}
