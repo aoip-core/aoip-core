@@ -98,9 +98,6 @@ struct aoip_operations {
 	int (*ao_close)(aoip_ctx_t *ctx, void *arg);
 	int (*ao_read)(queue_t *queue, void *arg);
 	int (*ao_write)(queue_t *queue, void *arg);
-
-	int (*nt_recv)(aoip_ctx_t *ctx);
-	int (*nt_send)(aoip_ctx_t *ctx);
 };
 
 

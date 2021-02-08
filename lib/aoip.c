@@ -303,7 +303,6 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 	}
 
 	// main loop
-	uint32_t cur_rtp_tstamp = 0;
 	ns_t now;
 	ns_gettime(&now);
 	ns_t sap_timeout_timer = now;
