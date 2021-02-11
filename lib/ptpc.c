@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 int
 ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config,
@@ -241,7 +242,7 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 			//printf("mismatch: state=%d, type=%d, hdr.clockId=%04X, ctx-seqid=%04X\n",
 			//	   sync->state, msg->hdr.msgtype, htons(msg->hdr.seqid), htons(sync->seqid));
-			if (msg->hdr.seqid > sync->seqid) {
+			if (msg->hdr.seqid != sync->seqid) {
 				ptp_sync_state_reset(sync);
 				sync->timeout_timer = sync->now;
 				goto out;
@@ -252,8 +253,13 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 				// send DELAY_REP
 				build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
-				sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
-					   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr));
+				if (sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
+					   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr)) < 0) {
+					if (errno != EAGAIN) {
+						perror("sendto(ptp->event_fd)");
+						ret = -1;
+					}
+				}
 				ns_gettime(&sync->t3);
 
 				sync->state = S_FOLLOW_UP;
@@ -261,13 +267,22 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 			} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
 				sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
 
-				// offset
-				ctx->ptp_offset = calc_ptp_offset(sync);
+				// update ptp offset
+				int64_t new_offset = ptp_offset(sync);
+				int64_t offset_diff = ptp_offset_sub(ctx->ptp_offset, new_offset);
+				if (ctx->ptp_offset == 0) {
+					ctx->ptp_offset = new_offset;
+				} else if (offset_diff > PTP_OFFSET_THRESHOLD) {
+					ctx->ptp_offset -= PTP_OFFSET_INC;
+				} else if (offset_diff < -PTP_OFFSET_THRESHOLD) {
+					ctx->ptp_offset += PTP_OFFSET_INC;
+				}
+				//printf("%"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIi64"\n",
+				//	   sync->t1, sync->t2, sync->t3, sync->t4, new_offset);
 
-				printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+				//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
 				ptp_sync_state_reset(sync);
 				sync->timeout_timer = sync->now;
-				ret = 1;
 			}
 		}
 	}

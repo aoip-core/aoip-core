@@ -3,6 +3,12 @@
 #include <time.h>
 
 #define NS_SEC  1000000000ULL
+#define NS_MSEC 1000000ULL
+#define NS_USEC 1000ULL
+
+#define NS_SEC_LL  1000000000LL
+#define NS_MSEC_LL 1000000LL
+#define NS_USEC_LL 1000LL
 
 typedef uint64_t ns_t;
 
@@ -40,8 +46,8 @@ static inline void ns_gettime(ns_t *ns)
 
 static inline ns_t tstamp_to_ns(tstamp_t *ts)
 {
-	ns_t sec = ((ns_t)ntohs(ts->sec_msb) << 32) + (ns_t)ntohl(ts->sec_lsb);
-	return (sec * NS_SEC + (ns_t)ts->ns);
+	ns_t sec = ((ns_t)ntohs(ts->sec_msb) << 4) + (ns_t)ntohl(ts->sec_lsb);
+	return (sec * NS_SEC + (ns_t)ntohl(ts->ns));
 }
 
 static inline uint32_t ptp_time(ns_t ts, int64_t offset)

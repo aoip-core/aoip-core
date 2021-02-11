@@ -5,10 +5,13 @@
 #include <inttypes.h>
 
 #include "timer.h"
-#include "aoip/ptp.h"
 #include "socket.h"
+#include "ptp.h"
 
 #define PTP_PACKET_BUF_SIZE 256
+
+#define PTP_OFFSET_THRESHOLD (20 * NS_USEC_LL)  // 1s / 48kHz = 20.833us
+#define PTP_OFFSET_INC       (4 * NS_USEC_LL)  // 4us
 
 typedef enum {
 	PTP_MODE_NONE = 0,
@@ -71,9 +74,14 @@ static inline void ptp_sync_state_reset(ptpc_sync_ctx_t *sync)
 	sync->state = S_INIT;
 }
 
-static inline int64_t calc_ptp_offset(ptpc_sync_ctx_t *sync)
+static inline int64_t ptp_offset(ptpc_sync_ctx_t *sync)
 {
 	return ((int64_t)sync->t1 - (int64_t)sync->t2 - (int64_t)sync->t4 + (int64_t)sync->t3) / 2;
+}
+
+static inline int64_t ptp_offset_sub(int64_t offset1, int64_t offset2)
+{
+	return offset1 - offset2;
 }
 
 int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, struct in_addr, uint8_t *txbuf, uint8_t *rxbuf);

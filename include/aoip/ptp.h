@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "utils.h"
+
 #define BIT(x) (1 << (x))
 //#define BIT_ULL(x) (1ULL << (x))
 
@@ -27,8 +29,7 @@
 #define PTP_FLAG_TIME_TRACEABLE    BIT(12)
 #define PTP_FLAG_FREQ_TRACEABLE    BIT(13)
 
-#define MAX_IPV4_ASCII_SIZE    15
-static const char ptp_multicast_addr[][MAX_IPV4_ASCII_SIZE] = {
+static const char ptp_multicast_addr[][MAX_IPV4_ASCII_SIZE+1] = {
 		"224.0.1.129",  // domain 0
 		"224.0.1.130",  // domain 1
 		"224.0.1.131",  // domain 2
