@@ -48,6 +48,11 @@ typedef struct {
 	struct sap_msg sap_msg;
 } sap_ctx_t;
 
+static inline ssize_t sap_send(sap_ctx_t *sap) {
+	sendto(sap->sap_fd, &sap->sap_msg.data, sap->sap_msg.len, 0,
+			   (struct sockaddr *)&sap->mcast_addr, sizeof(sap->mcast_addr));
+}
+
 int search_rtp_addr_from_sap_msg(struct in_addr *, const struct sap_msg *);
 int build_sap_msg(struct sap_msg *, uint8_t *, struct in_addr, struct in_addr,
 		uint8_t, uint32_t, uint8_t, uint64_t);

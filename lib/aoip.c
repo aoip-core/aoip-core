@@ -295,8 +295,8 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 		ret = -1;
 		goto out;
 	}
-	if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
-			   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+
+	if (sap_send(&ctx->sap) < 0) {
 		perror("sendto(sap_fd)");
 		ret = -1;
 		goto out;
@@ -307,7 +307,6 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 	ns_gettime(&now);
 	ns_t sap_timeout_timer = now;
 	uint16_t seq = 0;
-	uint8_t first_data_flg = 1;
 	while (!ctx->network_stop_flag) {
 		queue_t *queue = &ctx->queue;
 
@@ -329,11 +328,9 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 				slot->len = count;
 				slot->seq = seq;
 				ns_gettime(&slot->tstamp);
-				slot->first_data_flg = first_data_flg;
 
 				asm("sfence;");
 				seq = (seq + 1) & 0xffff;
-				first_data_flg = 0;
 				queue_write_next(queue);
 			} else {
 				// packet drop
@@ -344,8 +341,7 @@ static int network_recv_loop(aoip_ctx_t *ctx)
 		// send SAP message
 		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
 			printf("%"PRIu64": send sap_msg\n", now);
-			if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
-					   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+			if (sap_send(&ctx->sap) < 0) {
 				perror("sendto(sap_fd)");
 				ret = -1;
 				break;
@@ -385,15 +381,13 @@ network_send_loop(aoip_ctx_t *ctx)
 		ret = -1;
 		goto out;
 	}
-	if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
-			   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+	if (sap_send(&ctx->sap) < 0) {
 		perror("sendto(sap_fd)");
 		ret = -1;
 		goto out;
 	}
 
 	// main loop
-	uint32_t cur_rtp_tstamp = 0;
 	ns_t now;
 	ns_gettime(&now);
 	ns_t sap_timeout_timer = now;
@@ -416,12 +410,7 @@ network_send_loop(aoip_ctx_t *ctx)
 			struct rtp_hdr *rtp = (struct rtp_hdr *)slot->data;
 
 			// rtp_hdr timestamp field
-			if (slot->first_data_flg) { // temporary flag
-				cur_rtp_tstamp = (ptp_time(slot->tstamp, ctx->ptpc.ptp_offset) * 48) & 0xffffffff;
-			} else {
-				cur_rtp_tstamp = (cur_rtp_tstamp + 48) & 0xffffffff;
-			}
-			rtp->timestamp = htonl(cur_rtp_tstamp);
+			rtp->timestamp = htonl(ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate));
 
 			// rtp_hdr sequence field
 			rtp->sequence = htons(slot->seq);
@@ -444,9 +433,7 @@ network_send_loop(aoip_ctx_t *ctx)
 
 		// send SAP message
 		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			printf("%"PRIu64": send sap_msg\n", now);
-			if (sendto(ctx->sap.sap_fd, &ctx->sap.sap_msg.data, ctx->sap.sap_msg.len, 0,
-					   (struct sockaddr *)&ctx->sap.mcast_addr, sizeof(ctx->sap.mcast_addr)) < 0) {
+			if (sap_send(&ctx->sap) < 0) {
 				perror("sendto(sap_fd)");
 				ret = -1;
 				break;

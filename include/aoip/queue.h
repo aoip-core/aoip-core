@@ -6,7 +6,6 @@ struct aoip_queue_slot {
 	uint16_t len;      /* number of valid data for each slot */
 	uint16_t seq;
 	ns_t tstamp;
-	uint8_t first_data_flg;  // temporary
 	uint8_t *data;     /* data point */
 };
 typedef struct aoip_queue_slot queue_slot_t;

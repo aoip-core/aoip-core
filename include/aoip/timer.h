@@ -50,7 +50,3 @@ static inline ns_t tstamp_to_ns(tstamp_t *ts)
 	return (sec * NS_SEC + (ns_t)ntohl(ts->ns));
 }
 
-static inline uint32_t ptp_time(ns_t ts, int64_t offset)
-{
-	return (uint32_t)((ts - offset) / 1000000);
-}

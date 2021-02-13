@@ -74,6 +74,11 @@ static inline void ptp_sync_state_reset(ptpc_sync_ctx_t *sync)
 	sync->state = S_INIT;
 }
 
+static inline ns_t ptp_time(ns_t ts, int64_t offset)
+{
+	return ts - offset;
+}
+
 static inline int64_t ptp_offset(ptpc_sync_ctx_t *sync)
 {
 	return ((int64_t)sync->t1 - (int64_t)sync->t2 - (int64_t)sync->t4 + (int64_t)sync->t3) / 2;

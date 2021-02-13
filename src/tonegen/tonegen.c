@@ -10,7 +10,6 @@ struct audio_ctx {
 	float_t tone_period;
 	float_t tone_delta;
 	uint16_t seq;
-	uint8_t first_data_flg;  // temporary
 };
 
 int tonegen_ao_init(aoip_ctx_t *aoip, void *arg)
@@ -22,7 +21,6 @@ int tonegen_ao_init(aoip_ctx_t *aoip, void *arg)
 	audio->tone_period = 0.0;
 	audio->tone_delta = TONE_FREQ_A4 / aoip->audio_sampling_rate;
 	audio->seq = 0;
-	audio->first_data_flg = 1;
 
 	return 0;
 }
@@ -50,7 +48,6 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 		slot->len = queue->data_len;
 		slot->seq = audio->seq;
 		ns_gettime(&slot->tstamp);
-		slot->first_data_flg = audio->first_data_flg;
 
 		uint8_t *wr = queue_audio_data_write_ptr(queue);
 		for (uint16_t i = 0; i < 288; i+=6, wr+=6) {
@@ -71,7 +68,6 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 
 		asm("sfence;");
 		audio->seq = (audio->seq + 1) & 0xffff;
-		audio->first_data_flg = 0;
 		queue_write_next(queue);
 	}
 

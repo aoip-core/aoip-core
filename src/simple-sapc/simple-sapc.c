@@ -47,8 +47,7 @@ int sap_loop(sap_ctx_t *ctx)
 	timeout_timer = now;
 
 	printf("%"PRIu64": send sap_msg\n", now);
-	if (sendto(ctx->sap_fd, &ctx->sap_msg.data, ctx->sap_msg.len, 0,
-			   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
+	if (sap_send(ctx) < 0) {
 		perror("send");
 		ret = -1;
 		goto err;
@@ -59,8 +58,7 @@ int sap_loop(sap_ctx_t *ctx)
 
 		if (ns_sub(now, timeout_timer) >= TIMEOUT_SAP_TIMER) {
 			printf("%"PRIu64": send sap_msg\n", now);
-			if (sendto(ctx->sap_fd, &ctx->sap_msg.data, ctx->sap_msg.len, 0,
-					   (struct sockaddr *)&ctx->mcast_addr, sizeof(ctx->mcast_addr)) < 0) {
+			if (sap_send(ctx) < 0) {
 				perror("send");
 				ret = -1;
 				break;
