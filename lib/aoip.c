@@ -243,6 +243,11 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
+		// success the PTP sync
+		if (ctx->ptpc.ptp_offset != 0) {
+			break;
+		}
+
 		// receive PTP event packets
 		if ((ret = ptpc_recv_sync_msg(&ctx->ptpc, &sync)) < 0) {
 			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
@@ -250,11 +255,7 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 		}
 
 		// receive PTP general packets
-		ret = ptpc_recv_general_packet(&ctx->ptpc, &sync);
-		if (ret == 1) {
-			// TODO: success
-			break;
-		} else if (ret < 0) {
+		if ((ret = ptpc_recv_general_packet(&ctx->ptpc, &sync)) < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
 			break;
 		}
@@ -271,93 +272,8 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 	return ret;
 }
 
-static int network_recv_loop(aoip_ctx_t *ctx)
-{
-	int ret = 0;
-
-	// wait a PTPv2 announce message
-	if (ptpc_announce_msg_loop(ctx) < 0) {
-		ret = -1;
-		goto out;
-	}
-
-	// PTPv2 sync
-	if (ptpc_sync_loop(ctx) < 0) {
-		ret = -1;
-		goto out;
-	}
-
-	// send a SDP message
-	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr.sin_addr,
-					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
-					  ctx->ptpc.ptp_server_id) < 0) {
-		fprintf(stderr, "build_sap_msg: failed\n");
-		ret = -1;
-		goto out;
-	}
-
-	if (sap_send(&ctx->sap) < 0) {
-		perror("sendto(sap_fd)");
-		ret = -1;
-		goto out;
-	}
-
-	// main loop
-	ns_t now;
-	ns_gettime(&now);
-	ns_t sap_timeout_timer = now;
-	uint16_t seq = 0;
-	while (!ctx->network_stop_flag) {
-		queue_t *queue = &ctx->queue;
-
-		ns_gettime(&now);
-
-		/*
-		// PTP sync
-		if (ptpc_sync_loop(ctx) < 0) {
-			ret = -1;
-			break;
-		}
-		*/
-
-		// RTP recv
-		queue_slot_t *slot = queue_write_ptr(queue);
-		ssize_t count;
-		if ((count = recv(ctx->rtp.rtp_fd, slot->data, ctx->rtp.rtp_packet_length, 0)) > 0) {
-			if (!queue_full(queue)) {
-				slot->len = count;
-				slot->seq = seq;
-				ns_gettime(&slot->tstamp);
-
-				asm("sfence;");
-				seq = (seq + 1) & 0xffff;
-				queue_write_next(queue);
-			} else {
-				// packet drop
-				printf("queue is full: %d %d\n", queue->head, queue->tail);
-			}
-		}
-
-		// send SAP message
-		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
-			printf("%"PRIu64": send sap_msg\n", now);
-			if (sap_send(&ctx->sap) < 0) {
-				perror("sendto(sap_fd)");
-				ret = -1;
-				break;
-			}
-			sap_timeout_timer = now;
-		}
-
-		sched_yield();
-	}
-
-	out:
-	return ret;
-}
-
 static int
-network_send_loop(aoip_ctx_t *ctx)
+network_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
 
@@ -388,57 +304,94 @@ network_send_loop(aoip_ctx_t *ctx)
 	}
 
 	// main loop
-	ns_t now;
-	ns_gettime(&now);
-	ns_t sap_timeout_timer = now;
+	ptpc_sync_ctx_t sync = {0};
+	sync.state = S_INIT;
+
+	uint16_t seq = 0;
+
+	ns_gettime(&sync.now);
+	sync.timeout_timer = sync.now;
+	sync.sap_timeout_timer = sync.now;
 	while (!ctx->network_stop_flag) {
 		queue_t *queue = &ctx->queue;
 
-		ns_gettime(&now);
+		ns_gettime(&sync.now);
 
-		/*
-		// PTP sync
-		if (ptpc_sync_loop(ctx) < 0) {
+		// receive PTP event packets
+		if (ptpc_recv_sync_msg(&ctx->ptpc, &sync) < 0) {
+			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
 			ret = -1;
 			break;
 		}
-		*/
 
-		// RTP send
-		if (!queue_empty(queue)) {
-			const queue_slot_t *slot = queue_read_ptr(queue);
-			struct rtp_hdr *rtp = (struct rtp_hdr *)slot->data;
+		// receive PTP general packets
+		if (ptpc_recv_general_packet(&ctx->ptpc, &sync) < 0) {
+			fprintf(stderr, "recv_ptp_general_packet: failed\n");
+			ret = -1;
+			break;
+		}
 
-			// rtp_hdr timestamp field
-			rtp->timestamp = htonl(ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate));
+		// RTP
+		if (ctx->aoip_mode == AOIP_MODE_PLAYBACK) {
+			queue_slot_t *slot = queue_write_ptr(queue);
+			ssize_t count;
+			if ((count = recv(ctx->rtp.rtp_fd, slot->data, ctx->rtp.rtp_packet_length, 0)) > 0) {
+				if (!queue_full(queue)) {
+					slot->len = count;
+					slot->seq = seq;
+					ns_gettime(&slot->tstamp);
+					seq = (seq + 1) & 0xffff;
 
-			// rtp_hdr sequence field
-			rtp->sequence = htons(slot->seq);
-
-			// send a rtp packet
-			if (sendto(ctx->rtp.rtp_fd, slot->data, slot->len, 0,
-				(struct sockaddr *)&ctx->rtp.mcast_addr, sizeof(ctx->rtp.mcast_addr)) < 0) {
-				if (errno == EAGAIN) {
-					continue;
+					asm("sfence;");
+					queue_write_next(queue);
 				} else {
-					perror("sendto(rtp_fd)");
-					ret = -1;
-					break;
+					// packet drop
+					printf("queue is full: %d %d\n", queue->head, queue->tail);
 				}
 			}
+		} else if (ctx->aoip_mode == AOIP_MODE_RECORD) {
+			if (!queue_empty(queue)) {
+				const queue_slot_t *slot = queue_read_ptr(queue);
+				struct rtp_hdr *rtp = (struct rtp_hdr *) slot->data;
 
-			asm("sfence;");
-			queue_read_next(queue);
+				// rtp_hdr timestamp field
+				rtp->timestamp = htonl(ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate));
+
+				// rtp_hdr sequence field
+				rtp->sequence = htons(slot->seq);
+
+				// send a rtp packet
+				if (sendto(ctx->rtp.rtp_fd, slot->data, slot->len, 0,
+						   (struct sockaddr *) &ctx->rtp.mcast_addr, sizeof(ctx->rtp.mcast_addr)) < 0) {
+					if (errno == EAGAIN) {
+						continue;
+					} else {
+						perror("sendto(rtp_fd)");
+						ret = -1;
+						break;
+					}
+				}
+
+				asm("sfence;");
+				queue_read_next(queue);
+			}
 		}
 
 		// send SAP message
-		if (ns_sub(now, sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
+		if (ns_sub(sync.now, sync.sap_timeout_timer) >= TIMEOUT_SAP_TIMER) {
 			if (sap_send(&ctx->sap) < 0) {
 				perror("sendto(sap_fd)");
 				ret = -1;
 				break;
 			}
-			sap_timeout_timer = now;
+			sync.sap_timeout_timer = sync.now;
+		}
+
+		// PTP timeout
+		if (ns_sub(sync.now, sync.timeout_timer) >= TIMEOUT_PTP_TIMER) {
+			fprintf(stderr, "ptp_timeout\n");
+			ret = -1;
+			break;
 		}
 
 		sched_yield();
@@ -454,12 +407,8 @@ int network_cb_run(aoip_ctx_t *ctx)
 
 	if (ctx->aoip_mode == AOIP_MODE_NONE) {
 		printf("Debug message: mode=MODE_NONE\n");
-	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK) {
-		if (network_recv_loop(ctx) < 0) {
-		    ret = -1;
-		}
-	} else if (ctx->aoip_mode == AOIP_MODE_RECORD) {
-		if (network_send_loop(ctx) < 0) {
+	} else if (ctx->aoip_mode == AOIP_MODE_PLAYBACK || ctx->aoip_mode == AOIP_MODE_RECORD) {
+		if (network_loop(ctx) < 0) {
 		    ret = -1;
 		}
 	} else {

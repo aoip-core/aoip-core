@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <assert.h>
+#include <math.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

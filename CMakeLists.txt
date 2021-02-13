@@ -38,7 +38,7 @@ add_library(aoip STATIC
 	lib/tone.c
 	lib/wav.c)
 target_include_directories(aoip PUBLIC include)
-target_link_libraries(aoip)
+target_link_libraries(aoip m)
 install(TARGETS aoip DESTINATION /usr/local/lib)
 install(FILES
 	include/aoip.h
@@ -75,7 +75,7 @@ target_link_libraries(tonegen Threads::Threads m aoip)
 
 # rtpdump
 add_executable(rtpdump src/rtpdump/rtpdump.c)
-target_link_libraries(rtpdump Threads::Threads aoip)
+target_link_libraries(rtpdump Threads::Threads m aoip)
 
 
 # test
