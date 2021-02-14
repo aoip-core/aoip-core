@@ -7,7 +7,7 @@ IF(NOT CMAKE_BUILD_TYPE)
 	SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
-set(CMAKE_C_FLAGS" ${CMAKE_C_FLAGS} -Wall -Wextra -O")
+set(CMAKE_C_FLAGS" ${CMAKE_C_FLAGS} -Wall -Wextra -O2")
 
 
 find_package(Threads REQUIRED)

@@ -15,7 +15,7 @@ test_build_sap_payload(void)
 	uint8_t audio_channels = 2;
 	uint64_t ptp_server_id = 0x782351feffc11d;
 
-	if (build_sap_msg(&msg, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
+	if (build_sap_msg(&msg, SAP_FLAGS_ANNOUNCE, (uint8_t *)&stream_name, local_addr, rtp_mcast_addr,
 					  audio_format, audio_sampling_rate, audio_channels, ptp_server_id) < 0) {
 		fprintf(stderr, "build_sap_msg: failed\n");
 	}

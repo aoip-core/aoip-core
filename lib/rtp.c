@@ -50,8 +50,20 @@ rtp_create_context(rtp_ctx_t *ctx, const rtp_config_t *config, struct in_addr lo
 		goto out;
 	}
 
+	if (aoip_set_tos(ctx->rtp_fd, TOS_CLASS_MEDIA) < 0) {
+		fprintf(stderr, "aoip_set_tos: failed\n");
+		ret = -1;
+		goto out;
+	}
+
 	if (aoip_mcast_interface(ctx->rtp_fd, ctx->local_addr) < 0) {
 		fprintf(stderr, "aoip_mcast_interface: failed\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (aoip_set_mcast_ttl(ctx->rtp_fd, RTP_MCAST_TTL) < 0) {
+		fprintf(stderr, "aoip_set_tos: failed\n");
 		ret = -1;
 		goto out;
 	}

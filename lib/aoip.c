@@ -28,7 +28,7 @@ static int aoip_queue_init(aoip_ctx_t *ctx, struct aoip_queue *queue)
 		}
 
 		// rtp header
-		uint8_t ptype = 97;
+		uint8_t ptype = 98;
 		uint32_t ssrc = (uint32_t)time(NULL);
 		build_rtp_hdr(queue->slot[i].data, ptype, ssrc);
 	}
@@ -273,6 +273,15 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 }
 
 static int
+aoip_build_sap_msg(aoip_ctx_t *ctx, uint8_t flags)
+{
+	return build_sap_msg(&ctx->sap.sap_msg, flags, ctx->sess_name, ctx->local_addr,
+					  ctx->rtp.mcast_addr.sin_addr, ctx->audio_format,
+					  ctx->audio_sampling_rate, ctx->audio_channels,
+					  ctx->ptpc.ptp_server_id);
+}
+
+static int
 network_loop(aoip_ctx_t *ctx)
 {
 	int ret = 0;
@@ -289,10 +298,8 @@ network_loop(aoip_ctx_t *ctx)
 		goto out;
 	}
 
-	// send a SDP message
-	if (build_sap_msg(&ctx->sap.sap_msg, ctx->sess_name, ctx->local_addr, ctx->rtp.mcast_addr.sin_addr,
-					  ctx->audio_format, ctx->audio_sampling_rate, ctx->audio_channels,
-					  ctx->ptpc.ptp_server_id) < 0) {
+	// send a SDP/SAP announce message
+	if (aoip_build_sap_msg(ctx, SAP_FLAGS_ANNOUNCE) < 0) {
 		fprintf(stderr, "build_sap_msg: failed\n");
 		ret = -1;
 		goto out;
@@ -308,6 +315,7 @@ network_loop(aoip_ctx_t *ctx)
 	sync.state = S_INIT;
 
 	uint16_t seq = 0;
+	uint32_t tstamp = 0; // Temp
 
 	ns_gettime(&sync.now);
 	sync.timeout_timer = sync.now;
@@ -355,7 +363,12 @@ network_loop(aoip_ctx_t *ctx)
 				struct rtp_hdr *rtp = (struct rtp_hdr *) slot->data;
 
 				// rtp_hdr timestamp field
-				rtp->timestamp = htonl(ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate));
+				//rtp->timestamp = htonl(ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate));
+				if (slot->seq == 0) {
+					tstamp = ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate);
+				}
+				rtp->timestamp = htonl(tstamp);
+				tstamp += 48;
 
 				// rtp_hdr sequence field
 				rtp->sequence = htons(slot->seq);
@@ -397,6 +410,18 @@ network_loop(aoip_ctx_t *ctx)
 		sched_yield();
 	}
 
+	// send a SDP/SAP deletion message
+	if (aoip_build_sap_msg(ctx, SAP_FLAGS_DELETION) < 0) {
+		fprintf(stderr, "build_sap_msg: failed\n");
+		ret = -1;
+		goto out;
+	}
+	if (sap_send(&ctx->sap) < 0) {
+		perror("sendto(sap_fd)");
+		ret = -1;
+		goto out;
+	}
+
 out:
 	return ret;
 }
@@ -430,17 +455,17 @@ static int audio_record_loop(aoip_ctx_t *ctx)
 
 	ns_t now;
 	ns_gettime(&now);
-	ns_t audio_write_timer = now;
+	ns_t audio_timer = now;
 	while (!ctx->audio_stop_flag) {
 		ns_gettime(&now);
 
-		if (ns_sub(now, audio_write_timer) >= NS_MSEC) {  // TODO
+		if (ns_sub(now, audio_timer) >= NS_MSEC) {  // TODO
 			if (ctx->ops->ao_read(&ctx->queue, ctx->audio_arg) < 0) {
 				perror("ops->ao_read");
 				ret = -1;
 				break;
 			}
-			audio_write_timer = now;
+			audio_timer = now;
 		}
 
 		sched_yield();
@@ -455,17 +480,17 @@ static int audio_playback_loop(aoip_ctx_t *ctx)
 
 	ns_t now;
 	ns_gettime(&now);
-	ns_t audio_write_timer = now;
+	ns_t audio_timer = now;
 	while (!ctx->audio_stop_flag) {
 		ns_gettime(&now);
 
-		if (ns_sub(now, audio_write_timer) >= NS_MSEC) {  // TODO
+		if (ns_sub(now, audio_timer) >= NS_MSEC) {  // TODO
 			if (ctx->ops->ao_write(&ctx->queue, ctx->audio_arg) < 0) {
 				fprintf(stderr, "ops->ao_write: failed");
 				ret = -1;
 				break;
 			}
-			audio_write_timer = now;
+			audio_timer = now;
 		}
 
 		sched_yield();

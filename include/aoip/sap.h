@@ -21,6 +21,10 @@
 
 #define MAX_SDP_DESC_SIZE   64
 #define MAX_SDP_MSG_SIZE    512
+
+#define SAP_FLAGS_ANNOUNCE 0x20
+#define SAP_FLAGS_DELETION 0x24
+
 struct sap_payload {
 	// sap
 	uint8_t flags;
@@ -54,7 +58,7 @@ static inline ssize_t sap_send(sap_ctx_t *sap) {
 }
 
 int search_rtp_addr_from_sap_msg(struct in_addr *, const struct sap_msg *);
-int build_sap_msg(struct sap_msg *, uint8_t *, struct in_addr, struct in_addr,
+int build_sap_msg(struct sap_msg *, uint8_t, uint8_t *, struct in_addr, struct in_addr,
 		uint8_t, uint32_t, uint8_t, uint64_t);
 int sap_create_context(sap_ctx_t *, struct in_addr);
 void sap_context_destroy(sap_ctx_t *);

@@ -65,6 +65,12 @@ ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config,
 		goto out;
 	}
 
+	if (aoip_set_tos(ctx->event_fd, TOS_CLASS_CLOCK) < 0) {
+		fprintf(stderr, "aoip_set_tos: failed\n");
+		ret = -1;
+		goto out;
+	}
+
 	if (aoip_mcast_interface(ctx->event_fd, ctx->local_addr) < 0) {
 		fprintf(stderr, "aoip_mcast_interface: failed\n");
 		ret = -1;

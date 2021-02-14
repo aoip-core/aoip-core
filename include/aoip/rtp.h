@@ -9,11 +9,13 @@
 #include <aoip/socket.h>
 #include <aoip/timer.h>
 
-#define RTP_MULTICAST_GROUP    "239.69.179.201"
+#define RTP_MULTICAST_GROUP    "239.69.179.222"
 #define RTP_PORT               5004
 #define RTP_HDR_SIZE    12
 
 #define RTP_PACKET_BUF_SIZE 512
+
+#define RTP_MCAST_TTL 15
 
 struct rtp_hdr {
 #if __BYTE_ORDER == __LITTLE_ENDIAN

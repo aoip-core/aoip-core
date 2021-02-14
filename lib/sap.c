@@ -68,19 +68,19 @@ search_rtp_addr_from_sap_msg(struct in_addr *addr, const struct sap_msg *msg)
 #define VER_DESC      "v=0\r\n"
 #define OWNER_ID      "o=- %d %d IN IP4 %s\r\n"
 #define SESSION_NAME  "s=%s\r\n"
-#define CONNECT_INFO  "c=IN IP4 %s/32\r\n"
+#define CONNECT_INFO  "c=IN IP4 %s/15\r\n"
 #define TIME_ACTIVE   "t=0 0\r\n"
-#define MEDIA_NAME    "m=audio 5004 RTP/AVP 96\r\n"
-//#define MEDIA_TITLE   "i=2 channels: Left, Right\r\n"
-//#define MEDIA_TITLE   "i=Channels 1-8\r\n"
-#define MEDIA_ATTR0   "a=rtpmap:97 L%d/%d/%d\r\n"
+#define MEDIA_NAME    "m=audio 5004 RTP/AVP 98\r\n"
+#define MEDIA_TITLE   "i=2 channels: Left, Right\r\n"
+#define MEDIA_ATTR0   "a=rtpmap:98 L%d/%d/%d\r\n"
 #define MEDIA_ATTR1   "a=recvonly\r\n"
+//#define MEDIA_ATTR1   "a=sync-time:0\r\na=recvonly\r\n"
 #define MEDIA_ATTR2   "a=ptime:1\r\n"
 #define MEDIA_ATTR3   "a=ts-refclk:ptp=IEEE1588-2008:%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X:0\r\n"
 #define MEDIA_ATTR4   "a=mediaclk:direct=0\r\n"
 
 int
-build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_addr,
+build_sap_msg(struct sap_msg *msg, uint8_t sap_flags, uint8_t *stream_name, struct in_addr local_addr,
 		struct in_addr rtp_mcast_addr, uint8_t audio_format, uint32_t audio_sampling_rate,
 				uint8_t audio_channels, uint64_t ptp_server_id)
 {
@@ -90,7 +90,7 @@ build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_ad
 	memset(msg, 0, sizeof(*msg));
 
 	/* SAP message */
-	data->flags = 0x20;
+	data->flags = sap_flags;
 	data->authlen = 0;
 	data->msg_id_hash = 0x3776;
 	data->origin_source = local_addr.s_addr;
@@ -125,6 +125,14 @@ build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_ad
 	}
 	cur += ret;
 
+	// media title
+	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_TITLE);
+	if (ret < 0) {
+		perror("snprintf");
+		goto err;
+	}
+	cur += ret;
+
 	// connect info
 	ret = snprintf(cur, MAX_SDP_DESC_SIZE, CONNECT_INFO, inet_ntoa(rtp_mcast_addr));
 	if (ret < 0) {
@@ -148,16 +156,6 @@ build_sap_msg(struct sap_msg *msg, uint8_t *stream_name, struct in_addr local_ad
 		goto err;
 	}
 	cur += ret;
-
-/*
-	// media title
-	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_TITLE);
-	if (ret < 0) {
-		perror("snprintf");
-		goto err;
-	}
-	cur += ret;
- */
 
 	// media attr0
 	ret = snprintf(cur, MAX_SDP_DESC_SIZE, MEDIA_ATTR0, audio_format,

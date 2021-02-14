@@ -107,3 +107,29 @@ aoip_drop_mcast_membership(int fd, struct in_addr local_addr, struct in_addr mca
 	return ret;
 }
 
+int
+aoip_set_tos(int fd, int tos)
+{
+	int ret = 0;
+
+	if (setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) < 0) {
+		perror("setsockopt(IP_TOS)");
+		ret = -1;
+	}
+
+	return ret;
+}
+
+int
+aoip_set_mcast_ttl(int fd, uint8_t ttl)
+{
+	int ret = 0;
+
+	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl, sizeof(ttl)) < 0) {
+		perror("setsockopt(IP_MULTICAST_TTL)");
+		ret = -1;
+	}
+
+	return ret;
+}
+
