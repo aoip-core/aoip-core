@@ -324,7 +324,7 @@ network_loop(aoip_ctx_t *ctx)
 					ns_gettime(&slot->tstamp);
 					seq = (seq + 1) & 0xffff;
 
-					asm("sfence;");
+					wmb();
 					queue_write_next(queue);
 				} else {
 					// packet drop
@@ -359,7 +359,7 @@ network_loop(aoip_ctx_t *ctx)
 					}
 				}
 
-				asm("sfence;");
+				wmb();
 				queue_read_next(queue);
 			}
 		}

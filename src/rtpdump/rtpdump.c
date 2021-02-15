@@ -82,7 +82,7 @@ int rtpdump_ao_read(aoip_queue_t *queue, void *arg)
 			audio->received_frames = (audio->received_frames + 1) & 0xffffffff;
 		}
 
-		asm("sfence;");
+		wmb();
 		queue_read_next(queue);
 	}
 

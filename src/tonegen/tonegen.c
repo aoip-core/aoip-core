@@ -66,8 +66,8 @@ int tonegen_ao_write(aoip_queue_t *queue, void *arg)
 				audio->tone_period = 0;
 		}
 
-		asm("sfence;");
 		audio->seq = (audio->seq + 1) & 0xffff;
+		wmb();
 		queue_write_next(queue);
 	}
 
