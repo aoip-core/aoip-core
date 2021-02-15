@@ -53,7 +53,7 @@ typedef struct {
 } sap_ctx_t;
 
 static inline ssize_t sap_send(sap_ctx_t *sap) {
-	sendto(sap->sap_fd, &sap->sap_msg.data, sap->sap_msg.len, 0,
+	return sendto(sap->sap_fd, &sap->sap_msg.data, sap->sap_msg.len, 0,
 			   (struct sockaddr *)&sap->mcast_addr, sizeof(sap->mcast_addr));
 }
 

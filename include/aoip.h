@@ -101,6 +101,15 @@ struct aoip_operations {
 	int (*ao_write)(queue_t *queue, void *arg);
 };
 
+static inline int
+aoip_build_sap_msg(aoip_ctx_t *ctx, uint8_t flags)
+{
+	return build_sap_msg(&ctx->sap.sap_msg, flags, ctx->sess_name, ctx->local_addr,
+						 ctx->rtp.mcast_addr.sin_addr, ctx->audio_format,
+						 ctx->audio_sampling_rate, ctx->audio_channels,
+						 ctx->ptpc.ptp_server_id);
+}
+
 
 #define AOIP_API    extern
 

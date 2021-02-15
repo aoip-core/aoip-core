@@ -55,7 +55,6 @@ typedef struct {
 	uint16_t seqid;
 
 	ns_t now;
-	ns_t recv_ts;
 	ns_t timeout_timer;
 	ns_t sap_timeout_timer;
 

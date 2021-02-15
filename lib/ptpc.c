@@ -9,12 +9,11 @@ int
 ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config,
 						struct in_addr local_addr, uint8_t *txbuf, uint8_t *rxbuf)
 {
-	int ret = 0;
+	int ret;
 
 	if (config->ptp_mode != PTP_MODE_MULTICAST) {
 		fprintf(stderr, "currently ptpc only supports multicast mode.\n");
-		ret = -1;
-		goto out;
+		return -1;
 	}
 
 	memset(ctx, 0, sizeof(*ctx));
@@ -27,23 +26,20 @@ ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config,
 		inet_pton(AF_INET, ptp_multicast_addr[config->ptp_domain], &ctx->mcast_addr);
 	} else {
 		fprintf(stderr, "can't set ctx->mcast_addr\n");
-		ret = -1;
-		goto out;
+		return -1;
 	}
 
 	// txbuf
 	if (txbuf == NULL) {
 		fprintf(stderr, "txbuf isn't allocated\n");
-		ret = -1;
-		goto out;
+		return -1;
 	} else {
 		ctx->txbuf = txbuf;
 	}
 	// rxbuf
 	if (rxbuf == NULL) {
 		fprintf(stderr, "rxbuf isn't allocated\n");
-		ret = -1;
-		goto out;
+		return -1;
 	} else {
 		ctx->rxbuf = rxbuf;
 	}
@@ -55,60 +51,50 @@ ptpc_create_context(ptpc_ctx_t *ctx, const ptpc_config_t *config,
 	// ptp_event_fd
 	if ((ctx->event_fd = aoip_socket_udp_nonblock()) < 0) {
 		fprintf(stderr, "aoip_socket_udp_nonblock: failed\n");
-		ret = -1;
-		goto out;
+		return ctx->event_fd;
 	}
 
-	if (aoip_bind(ctx->event_fd, PTP_EVENT_PORT) < 0) {
+	if ((ret = aoip_bind(ctx->event_fd, PTP_EVENT_PORT)) < 0) {
 		fprintf(stderr, "aoip_bind: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
-	if (aoip_set_tos(ctx->event_fd, TOS_CLASS_CLOCK) < 0) {
+	if ((ret = aoip_set_tos(ctx->event_fd, TOS_CLASS_CLOCK)) < 0) {
 		fprintf(stderr, "aoip_set_tos: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
-	if (aoip_mcast_interface(ctx->event_fd, ctx->local_addr) < 0) {
+	if ((ret = aoip_mcast_interface(ctx->event_fd, ctx->local_addr)) < 0) {
 		fprintf(stderr, "aoip_mcast_interface: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
-	if (aoip_mcast_membership(ctx->event_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+	if ((ret = aoip_mcast_membership(ctx->event_fd, ctx->local_addr, ctx->mcast_addr)) < 0) {
 		fprintf(stderr, "aoip_mcast_membership: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
 	// ptp_general_fd
 	if ((ctx->general_fd = aoip_socket_udp_nonblock()) < 0) {
 		fprintf(stderr, "aoip_socket_udp_nonblock: failed\n");
-		ret = -1;
-		goto out;
+		return ctx->general_fd;
 	}
 
-	if (aoip_bind(ctx->general_fd, PTP_GENERAL_PORT) < 0) {
+	if ((ret = aoip_bind(ctx->general_fd, PTP_GENERAL_PORT)) < 0) {
 		fprintf(stderr, "aoip_bind: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
-	if (aoip_mcast_interface(ctx->general_fd, ctx->local_addr) < 0) {
+	if ((ret = aoip_mcast_interface(ctx->general_fd, ctx->local_addr)) < 0) {
 		fprintf(stderr, "aoip_mcast_interface: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
-	if (aoip_mcast_membership(ctx->general_fd, ctx->local_addr, ctx->mcast_addr) < 0) {
+	if ((ret = aoip_mcast_membership(ctx->general_fd, ctx->local_addr, ctx->mcast_addr)) < 0) {
 		fprintf(stderr, "aoip_mcast_membership: failed\n");
-		ret = -1;
-		goto out;
+		return ret;
 	}
 
-out:
 	return ret;
 }
 
@@ -125,7 +111,6 @@ void ptpc_context_destroy(ptpc_ctx_t *ctx)
 	}
 	close(ctx->event_fd);
 	ctx->event_fd = -1;
-
 }
 
 void print_ptp_header(ptp_msg_t *ptp)
@@ -193,8 +178,7 @@ int ptpc_recv_announce_msg(ptpc_ctx_t *ctx)
 	socklen_t slen = sizeof(sender);
 	int ret = 0;
 
-	if (recvfrom(ctx->general_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0,
-			  (struct sockaddr *)&sender, &slen) > 0) {
+	if (recvfrom(ctx->general_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0, (struct sockaddr *)&sender, &slen) > 0) {
 		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_ANNOUNCE) {
 			if (flag_is_set(msg->hdr.flag, PTP_FLAG_TWO_STEP) && !flag_is_set(msg->hdr.flag, PTP_FLAG_UNICAST)) {
 				ctx->server_addr.sin_addr.s_addr = sender.sin_addr.s_addr;
@@ -212,88 +196,92 @@ int ptpc_recv_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
 	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
 
-	int ret = 0;
-
-	if (recv(ctx->event_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0) > 0) {
-		ns_gettime(&sync->recv_ts);
-
-		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_SYNC) {
-			if (sync->state == S_INIT) {
-				sync->seqid = msg->hdr.seqid;
-				sync->t1 = sync->recv_ts;
-				sync->state = S_SYNC;
-				sync->timeout_timer = sync->now;
-				//printf("SYNC_MSG:  hdr.clockId=%04X\n", htons(msg->hdr.seqid));
-			}
+	if (recv(ctx->event_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0) < 0) {
+		if (errno == EAGAIN) {
+			return 0;
+		} else {
+			perror("recv(ctx->event_fd)");
+			return -1;
 		}
 	}
 
-	return ret;
+	if (sync->state == S_INIT) {
+		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_SYNC) {
+			ns_gettime(&sync->t1);
+			sync->seqid = msg->hdr.seqid;
+			sync->state = S_SYNC;
+			sync->timeout_timer = sync->now;
+		}
+	}
+
+	return 0;
 }
 
 int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
 	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
 
-	int ret = 0;
+	int ret;
 
-	if (recv(ctx->general_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0) > 0) {
-		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype != PTP_MSGID_ANNOUNCE) {
-			// detected new ptp server?
-			if (msg->hdr.clockId != ctx->ptp_server_id) {
-				fprintf(stderr, "detected new ptp server.\n");
-				ret = -1;
-				goto out;
-			}
-
-			//printf("mismatch: state=%d, type=%d, hdr.clockId=%04X, ctx-seqid=%04X\n",
-			//	   sync->state, msg->hdr.msgtype, htons(msg->hdr.seqid), htons(sync->seqid));
-			if (msg->hdr.seqid != sync->seqid) {
-				ptp_sync_state_reset(sync);
-				sync->timeout_timer = sync->now;
-				goto out;
-			}
-
-			if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
-				sync->t2 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
-
-				// send DELAY_REP
-				build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
-				if (sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
-					   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr)) < 0) {
-					if (errno != EAGAIN) {
-						perror("sendto(ptp->event_fd)");
-						ret = -1;
-					}
-				}
-				ns_gettime(&sync->t3);
-
-				sync->state = S_FOLLOW_UP;
-				sync->timeout_timer = sync->now;
-			} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
-				sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
-
-				// update ptp offset
-				int64_t new_offset = ptp_offset(sync);
-				int64_t offset_diff = ptp_offset_sub(ctx->ptp_offset, new_offset);
-				if (ctx->ptp_offset == 0) {
-					ctx->ptp_offset = new_offset;
-				} else if (offset_diff > PTP_OFFSET_THRESHOLD) {
-					ctx->ptp_offset -= PTP_OFFSET_INC;
-				} else if (offset_diff < -PTP_OFFSET_THRESHOLD) {
-					ctx->ptp_offset += PTP_OFFSET_INC;
-				}
-				//printf("%"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIi64"\n",
-				//	   sync->t1, sync->t2, sync->t3, sync->t4, new_offset);
-
-				//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
-				ptp_sync_state_reset(sync);
-				sync->timeout_timer = sync->now;
-			}
+	if ((ret = recv(ctx->general_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0)) < 0) {
+		if (errno == EAGAIN) {
+			return 0;
+		} else {
+			perror("recv(ctx->general_fd)");
+			return ret;
 		}
 	}
 
-out:
-	return ret;
+	if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype != PTP_MSGID_ANNOUNCE) {
+		// detected new ptp server?
+		if (msg->hdr.clockId != ctx->ptp_server_id) {
+			fprintf(stderr, "detected new ptp server.\n");
+			return -1;
+		}
+
+		if (msg->hdr.seqid != sync->seqid) {
+			ptp_sync_state_reset(sync);
+			sync->timeout_timer = sync->now;
+			return 0;
+		}
+
+		if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
+			sync->t2 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
+
+			// send DELAY_REP
+			build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
+			if (sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
+				   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr)) < 0) {
+				if (errno != EAGAIN) {
+					perror("sendto(ptp->event_fd)");
+					return -1;
+				}
+			}
+			ns_gettime(&sync->t3);
+			sync->state = S_FOLLOW_UP;
+			sync->timeout_timer = sync->now;
+		} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
+			sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
+
+			// update ptp offset
+			int64_t new_offset = ptp_offset(sync);
+			int64_t offset_diff = ptp_offset_sub(ctx->ptp_offset, new_offset);
+			if (ctx->ptp_offset == 0) {
+				ctx->ptp_offset = new_offset;
+			} else if (offset_diff > PTP_OFFSET_THRESHOLD) {
+				ctx->ptp_offset -= PTP_OFFSET_INC;
+			} else if (offset_diff < -PTP_OFFSET_THRESHOLD) {
+				ctx->ptp_offset += PTP_OFFSET_INC;
+			}
+			//printf("%"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIi64"\n",
+			//	   sync->t1, sync->t2, sync->t3, sync->t4, new_offset);
+
+			//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+			ptp_sync_state_reset(sync);
+			sync->timeout_timer = sync->now;
+		}
+	}
+
+	return 0;
 }
 
