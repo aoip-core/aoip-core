@@ -80,7 +80,7 @@ typedef struct {
 
 static inline uint32_t ns_to_rtp_tstamp(ns_t ts, uint32_t rate)
 {
-	return (uint32_t)((uint64_t)round((ts / 1000000000.0) * rate) & 0xffffffff);
+	return (uint32_t)((uint64_t)floor((ts / 1000000000.0) * rate) & 0xffffffff);
 }
 
 int rtp_create_context(rtp_ctx_t *, const rtp_config_t *, struct in_addr, uint16_t, uint16_t, uint8_t *, uint8_t *);

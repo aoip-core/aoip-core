@@ -232,8 +232,8 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
-		// This function breaks out of the loop when the meanPathDelay is measured 5 times
-		if (sync.synced_count == 5) {
+		// This function breaks out of the loop when the meanPathDelay is measured 10 times
+		if (sync.synced_count == 10) {
 			break;
 		}
 
@@ -337,12 +337,12 @@ network_loop(aoip_ctx_t *ctx)
 				struct rtp_hdr *rtp = (struct rtp_hdr *) slot->data;
 
 				// rtp_hdr timestamp field
-				tstamp = ns_to_rtp_tstamp(ptp_time(sync.now, ctx->ptpc.ptp_offset), ctx->audio_sampling_rate);
-				//if (slot->seq == 0) {
-				//	tstamp = ns_to_rtp_tstamp(ptp_time(sync.now, ctx->ptpc.ptp_offset), ctx->audio_sampling_rate);
-				//}
+				if (tstamp != 0) {
+					tstamp = (tstamp + 48) & 0xffff;
+				} else {
+					tstamp = ns_to_rtp_tstamp(ptp_time(sync.now, ctx->ptpc.ptp_offset), ctx->audio_sampling_rate);
+				}
 				rtp->timestamp = htonl(tstamp);
-				tstamp += 48;
 
 				// rtp_hdr sequence field
 				rtp->sequence = htons(slot->seq);

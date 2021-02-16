@@ -267,13 +267,11 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 			// update meanPathDelay
 			uint64_t new_mean_path_delay = ptp_mean_path_delay(sync);
-			if (ctx->mean_path_delay == 0 || new_mean_path_delay < ctx->mean_path_delay) {
+			if (ctx->mean_path_delay == 0 || new_mean_path_delay <= ctx->mean_path_delay) {
 				ctx->mean_path_delay = new_mean_path_delay;
+				ctx->ptp_offset = ptp_offset(ctx, sync);
 			}
 			++sync->synced_count;
-
-			// ptp offset
-			ctx->ptp_offset = ptp_offset(ctx, sync);
 
 			sync->timeout_timer = sync->now;
 
