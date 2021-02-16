@@ -38,8 +38,8 @@ static inline void ns_gettime(ns_t *ns)
 {
 	struct timespec t;
 
-	clock_gettime(CLOCK_MONOTONIC, &t);  // 6475.630167683
-	// clock_gettime(CLOCK_REALTIME, &t);  // 1610703922.324663055
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	//clock_gettime(CLOCK_REALTIME, &t);
 
 	*ns = (ns_t)(t.tv_sec * NS_SEC + t.tv_nsec);
 }

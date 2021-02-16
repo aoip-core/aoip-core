@@ -207,7 +207,8 @@ int ptpc_recv_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 	if (sync->state == S_INIT) {
 		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_SYNC) {
-			ns_gettime(&sync->t1);
+			ns_gettime(&sync->t2);
+
 			sync->seqid = msg->hdr.seqid;
 			sync->state = S_SYNC;
 			sync->timeout_timer = sync->now;
@@ -246,7 +247,7 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 		}
 
 		if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
-			sync->t2 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
+			sync->t1 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
 
 			// send DELAY_REP
 			build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
@@ -258,30 +259,41 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 				}
 			}
 			ns_gettime(&sync->t3);
+
 			sync->state = S_FOLLOW_UP;
 			sync->timeout_timer = sync->now;
 		} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
 			sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
 
-			// update ptp offset
-			int64_t new_offset = ptp_offset(sync);
-			int64_t offset_diff = ptp_offset_sub(ctx->ptp_offset, new_offset);
-			if (ctx->ptp_offset == 0) {
-				ctx->ptp_offset = new_offset;
-			} else if (offset_diff > PTP_OFFSET_THRESHOLD) {
-				ctx->ptp_offset -= PTP_OFFSET_INC;
-			} else if (offset_diff < -PTP_OFFSET_THRESHOLD) {
-				ctx->ptp_offset += PTP_OFFSET_INC;
+			// update meanPathDelay
+			uint64_t new_mean_path_delay = ptp_mean_path_delay(sync);
+			if (ctx->mean_path_delay == 0 || new_mean_path_delay < ctx->mean_path_delay) {
+				ctx->mean_path_delay = new_mean_path_delay;
 			}
-			//printf("%"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIi64"\n",
-			//	   sync->t1, sync->t2, sync->t3, sync->t4, new_offset);
+			++sync->synced_count;
 
-			//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
-			ptp_sync_state_reset(sync);
+			// ptp offset
+			ctx->ptp_offset = ptp_offset(ctx, sync);
+
 			sync->timeout_timer = sync->now;
+
+			/*
+			//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+			ns_t hoge;
+			ns_gettime(&hoge);
+			printf("PTP:"
+			    "now=%"PRIu64"\t"
+			    "sync->t4=%"PRIu64"\t"
+			    "path_delay=%"PRId64"\t"
+			    "offset=%"PRId64"\t"
+			    "ptp_time=%"PRIu64"\n",
+		  			hoge, sync->t4, ctx->mean_path_delay, ctx->ptp_offset, ptp_time(hoge, ctx->ptp_offset));
+			ptp_sync_state_reset(sync);
+			*/
 		}
 	}
 
 	return 0;
 }
+
 

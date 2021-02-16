@@ -232,8 +232,8 @@ ptpc_sync_loop(aoip_ctx_t *ctx) {
 	while (!ctx->network_stop_flag) {
 		ns_gettime(&sync.now);
 
-		// success the PTP sync
-		if (ctx->ptpc.ptp_offset != 0) {
+		// This function breaks out of the loop when the meanPathDelay is measured 5 times
+		if (sync.synced_count == 5) {
 			break;
 		}
 
@@ -301,13 +301,13 @@ network_loop(aoip_ctx_t *ctx)
 
 		ns_gettime(&sync.now);
 
-		// receive PTP event packets
+		// receive PTP sync messages
 		if ((ret = ptpc_recv_sync_msg(&ctx->ptpc, &sync)) < 0) {
 			fprintf(stderr, "recv_ptp_sync_msg: failed\n");
 			break;
 		}
 
-		// receive PTP general packets
+		// receive PTP follow_up messages
 		if ((ret = ptpc_recv_general_packet(&ctx->ptpc, &sync)) < 0) {
 			fprintf(stderr, "recv_ptp_general_packet: failed\n");
 			break;
@@ -337,10 +337,10 @@ network_loop(aoip_ctx_t *ctx)
 				struct rtp_hdr *rtp = (struct rtp_hdr *) slot->data;
 
 				// rtp_hdr timestamp field
-				//rtp->timestamp = htonl(ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate));
-				if (slot->seq == 0) {
-					tstamp = ns_to_rtp_tstamp(slot->tstamp, ctx->audio_sampling_rate);
-				}
+				tstamp = ns_to_rtp_tstamp(ptp_time(sync.now, ctx->ptpc.ptp_offset), ctx->audio_sampling_rate);
+				//if (slot->seq == 0) {
+				//	tstamp = ns_to_rtp_tstamp(ptp_time(sync.now, ctx->ptpc.ptp_offset), ctx->audio_sampling_rate);
+				//}
 				rtp->timestamp = htonl(tstamp);
 				tstamp += 48;
 

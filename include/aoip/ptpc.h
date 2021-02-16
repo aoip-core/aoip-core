@@ -38,6 +38,7 @@ typedef struct {
 
 	uint64_t ptp_server_id;
 
+	int64_t mean_path_delay;
 	int64_t ptp_offset;
 
 	int event_fd;
@@ -51,6 +52,8 @@ typedef struct {
 
 typedef struct {
 	ptp_sync_state_t state;
+
+	uint8_t synced_count;
 
 	uint16_t seqid;
 
@@ -73,20 +76,30 @@ static inline void ptp_sync_state_reset(ptpc_sync_ctx_t *sync)
 	sync->state = S_INIT;
 }
 
+static inline int64_t ptp_mean_path_delay(ptpc_sync_ctx_t *sync)
+{
+	int64_t d1 = (int64_t)sync->t2 - (int64_t)sync->t3;
+	int64_t d2 = (int64_t)sync->t4 - (int64_t)sync->t1;
+	return (d1 + d2) / 2;
+}
+
+static inline int64_t ptp_offset(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
+{
+	return sync->t2 - sync->t1 - ctx->mean_path_delay;
+}
+
 static inline ns_t ptp_time(ns_t ts, int64_t offset)
 {
-	return ts - offset;
+	return (ns_t)(ts - offset);
 }
 
-static inline int64_t ptp_offset(ptpc_sync_ctx_t *sync)
-{
-	return ((int64_t)sync->t1 - (int64_t)sync->t2 - (int64_t)sync->t4 + (int64_t)sync->t3) / 2;
-}
 
-static inline int64_t ptp_offset_sub(int64_t offset1, int64_t offset2)
+/*
+static inline float_t ptp_ratio_server_freq(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
-	return offset1 - offset2;
+	return ((float_t)(sync->t1 - ctx->first_sync_ingress_tstamp) / ((float_t)(sync->t2 - ctx->first_correct_server_tstamp));
 }
+*/
 
 int ptpc_create_context(ptpc_ctx_t *, const ptpc_config_t *, struct in_addr, uint8_t *txbuf, uint8_t *rxbuf);
 void ptpc_context_destroy(ptpc_ctx_t *);
