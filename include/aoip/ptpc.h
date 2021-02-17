@@ -41,6 +41,11 @@ typedef struct {
 	int64_t mean_path_delay;
 	int64_t ptp_offset;
 
+	uint64_t sync_recv_tstamp0;
+	uint64_t follow_up_tstamp0;
+	uint64_t sync_recv_tstamp;
+	uint64_t follow_up_tstamp;
+
 	int event_fd;
 
 	int general_fd;
@@ -93,6 +98,14 @@ static inline ns_t ptp_time(ns_t ts, int64_t offset)
 	return (ns_t)(ts - offset);
 }
 
+static inline void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
+{
+	memset(msg, 0, sizeof(*msg));
+	msg->hdr.msgtype = PTP_MSGID_DELAY_REQ;
+	msg->hdr.ver = 2;
+	msg->hdr.seqid = ctx->seqid;
+	msg->hdr.msglen = htons(sizeof(ptp_delay_req_t));
+}
 
 /*
 static inline float_t ptp_ratio_server_freq(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)

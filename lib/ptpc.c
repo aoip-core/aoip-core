@@ -161,15 +161,6 @@ void print_ptp_header(ptp_msg_t *ptp)
 			ptp->hdr.logmsgintval);
 }
 
-void build_ptp_delay_req_msg(ptpc_sync_ctx_t *ctx, ptp_delay_req_t *msg)
-{
-	memset(msg, 0, sizeof(*msg));
-	msg->hdr.msgtype = PTP_MSGID_DELAY_REQ;
-	msg->hdr.ver = 2;
-	msg->hdr.seqid = ctx->seqid; //(++ctx->seqid) & 0xFFFF;
-	msg->hdr.msglen = htons(sizeof(ptp_delay_req_t));
-}
-
 int ptpc_recv_announce_msg(ptpc_ctx_t *ctx)
 {
 	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
@@ -196,6 +187,8 @@ int ptpc_recv_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 {
 	const ptp_msg_t *msg = (ptp_msg_t *)ctx->rxbuf;
 
+	ns_gettime(&sync->t2);
+
 	if (recv(ctx->event_fd, ctx->rxbuf, PTP_PACKET_BUF_SIZE, 0) < 0) {
 		if (errno == EAGAIN) {
 			return 0;
@@ -207,8 +200,6 @@ int ptpc_recv_sync_msg(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 
 	if (sync->state == S_INIT) {
 		if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype == PTP_MSGID_SYNC) {
-			ns_gettime(&sync->t2);
-
 			sync->seqid = msg->hdr.seqid;
 			sync->state = S_SYNC;
 			sync->timeout_timer = sync->now;
@@ -233,62 +224,64 @@ int ptpc_recv_general_packet(ptpc_ctx_t *ctx, ptpc_sync_ctx_t *sync)
 		}
 	}
 
-	if (msg->hdr.ver == 0x2 && msg->hdr.ndomain == 0 && msg->hdr.msgtype != PTP_MSGID_ANNOUNCE) {
-		// detected new ptp server?
-		if (msg->hdr.clockId != ctx->ptp_server_id) {
-			fprintf(stderr, "detected new ptp server.\n");
-			return -1;
-		}
+	if (msg->hdr.ver != 0x2 || msg->hdr.ndomain != 0) {
+		return 0;
+	}
 
-		if (msg->hdr.seqid != sync->seqid) {
-			ptp_sync_state_reset(sync);
-			sync->timeout_timer = sync->now;
-			return 0;
-		}
+	if (msg->hdr.seqid != sync->seqid) {
+		ptp_sync_state_reset(sync);
+		sync->timeout_timer = sync->now;
+		return 0;
+	}
 
-		if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
-			sync->t1 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
+	// detected new ptp server?
+	if (msg->hdr.clockId != ctx->ptp_server_id) {
+		fprintf(stderr, "detected new ptp server.\n");
+		return -1;
+	}
 
-			// send DELAY_REP
-			build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
-			if (sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
-				   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr)) < 0) {
-				if (errno != EAGAIN) {
-					perror("sendto(ptp->event_fd)");
-					return -1;
-				}
+	if (sync->state == S_SYNC && msg->hdr.msgtype == PTP_MSGID_FOLLOW_UP) {
+		sync->t1 = tstamp_to_ns((tstamp_t *)&msg->follow_up.tstamp);
+
+		// send DELAY_REP
+		build_ptp_delay_req_msg(sync, (ptp_delay_req_t *)ctx->txbuf);
+		if (sendto(ctx->event_fd, ctx->txbuf, sizeof(ptp_delay_req_t), 0,
+			   (struct sockaddr *)&ctx->server_addr, sizeof(ctx->server_addr)) < 0) {
+			if (errno != EAGAIN) {
+				perror("sendto(ptp->event_fd)");
+				return -1;
 			}
-			ns_gettime(&sync->t3);
-
-			sync->state = S_FOLLOW_UP;
-			sync->timeout_timer = sync->now;
-		} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
-			sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
-
-			// update meanPathDelay
-			uint64_t new_mean_path_delay = ptp_mean_path_delay(sync);
-			if (ctx->mean_path_delay == 0 || new_mean_path_delay <= ctx->mean_path_delay) {
-				ctx->mean_path_delay = new_mean_path_delay;
-				ctx->ptp_offset = ptp_offset(ctx, sync);
-			}
-			++sync->synced_count;
-
-			sync->timeout_timer = sync->now;
-
-			/*
-			//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
-			ns_t hoge;
-			ns_gettime(&hoge);
-			printf("PTP:"
-			    "now=%"PRIu64"\t"
-			    "sync->t4=%"PRIu64"\t"
-			    "path_delay=%"PRId64"\t"
-			    "offset=%"PRId64"\t"
-			    "ptp_time=%"PRIu64"\n",
-		  			hoge, sync->t4, ctx->mean_path_delay, ctx->ptp_offset, ptp_time(hoge, ctx->ptp_offset));
-			ptp_sync_state_reset(sync);
-			*/
 		}
+		ns_gettime(&sync->t3);
+
+		sync->state = S_FOLLOW_UP;
+		sync->timeout_timer = sync->now;
+	} else if (sync->state == S_FOLLOW_UP && msg->hdr.msgtype == PTP_MSGID_DELAY_RESP) {
+		sync->t4 = tstamp_to_ns((tstamp_t *)&msg->delay_resp.tstamp);
+
+		// update meanPathDelay
+		uint64_t new_mean_path_delay = ptp_mean_path_delay(sync);
+		if (ctx->mean_path_delay == 0 || new_mean_path_delay <= ctx->mean_path_delay) {
+			ctx->mean_path_delay = new_mean_path_delay;
+			ctx->ptp_offset = ptp_offset(ctx, sync);
+		}
+		++sync->synced_count;
+
+		sync->timeout_timer = sync->now;
+
+		/*
+		//printf("Synced. sequence=%hu, offset=%"PRId64"\n", sync->seqid, ctx->ptp_offset);
+		ns_t hoge;
+		ns_gettime(&hoge);
+		printf("PTP:"
+			"now=%"PRIu64"\t"
+			"sync->t4=%"PRIu64"\t"
+			"path_delay=%"PRId64"\t"
+			"offset=%"PRId64"\t"
+			"ptp_time=%"PRIu64"\n",
+				hoge, sync->t4, ctx->mean_path_delay, ctx->ptp_offset, ptp_time(hoge, ctx->ptp_offset));
+		ptp_sync_state_reset(sync);
+		*/
 	}
 
 	return 0;
